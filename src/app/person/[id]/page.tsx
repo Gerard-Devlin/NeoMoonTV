@@ -509,7 +509,7 @@ export default function PersonDetailPage() {
                     </span>
                   </div>
 
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {selectedSectionData.items.map((item, index) => (
                       <div
                         key={`${selectedSectionData.title}-all-${item.mediaType}-${item.id}-${index}`}

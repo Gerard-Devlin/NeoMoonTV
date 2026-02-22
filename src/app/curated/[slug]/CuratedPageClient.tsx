@@ -149,7 +149,7 @@ export default function CuratedPageClient() {
           </div>
 
           {loading ? (
-            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-8 sm:px-2'>
+            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8 sm:px-2'>
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={`curated-loading-${index}`} className='w-full'>
                   <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
@@ -169,7 +169,7 @@ export default function CuratedPageClient() {
 
           {!loading && !error ? (
             <>
-              <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-8 sm:px-2'>
+              <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8 sm:px-2'>
                 {items.map((item) => (
                   <div key={`${item.id}-${item.title}`} className='w-full'>
                     <VideoCard

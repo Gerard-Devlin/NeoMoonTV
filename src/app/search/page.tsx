@@ -691,7 +691,7 @@ function SearchPageClient() {
     <div className='min-h-screen w-full'>
       <div className='relative w-full'>
         <PageLayout activePath='/search'>
-          <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
+          <div className='px-4 sm:px-10 py-4 sm:pb-8 sm:pt-4 overflow-visible mb-10'>
             <div className='mb-8'>
               <form
                 onSubmit={handleSearch}
@@ -886,7 +886,7 @@ function SearchPageClient() {
                   </div>
                   <div
                     key={`search-results-${viewMode}`}
-                    className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
+                    className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px]'
                   >
                     {viewMode === 'agg'
                       ? aggregatedResults.map(([mapKey, group]) => {
@@ -962,7 +962,7 @@ function SearchPageClient() {
                       </button>
 
                       {legacyExpanded && (
-                        <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
+                        <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px]'>
                           {viewMode === 'agg'
                             ? aggregatedLegacyResults.map(([mapKey, group]) => (
                                 <div

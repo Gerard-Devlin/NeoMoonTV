@@ -1065,8 +1065,8 @@ function DoubanPageClient() {
             </div>
           </div>
 
-          <div className='mx-auto mt-8 max-w-[95%] overflow-visible'>
-            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 px-0 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-8 sm:px-2'>
+          <div className='mt-8 overflow-visible'>
+            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 px-0 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8 sm:px-2'>
               {(
                 type === 'custom'
                   ? customLoading
