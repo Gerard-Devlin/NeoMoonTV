@@ -41,7 +41,7 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
   const suppressCardClickRef = useRef(false);
 
   const updatePlayRecords = (allRecords: Record<string, PlayRecord>) => {

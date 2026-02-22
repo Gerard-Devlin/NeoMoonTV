@@ -499,7 +499,7 @@ function MyPageClient() {
     tv: { data: [], posters: {} },
   });
   const genreCacheRef = useRef<Map<string, string[]>>(new Map());
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
   const suppressPlayCardClickRef = useRef(false);
   const suppressFavoriteCardClickRef = useRef(false);
 
