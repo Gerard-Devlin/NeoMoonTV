@@ -1040,8 +1040,8 @@ function MyPageClient() {
 
   return (
     <PageLayout activePath='/my'>
-      <div className='px-2 pt-6 pb-5 sm:px-10 sm:pt-8 sm:pb-8 md:pt-8'>
-        <div className='mx-auto w-full max-w-[95%] space-y-8'>
+      <div className='overflow-visible px-0 pb-4 sm:px-10 sm:pb-8'>
+        <div className='space-y-8 px-4 pt-6 sm:px-0 sm:pt-8 md:pt-8'>
           <div className='flex justify-center'>
             <CapsuleSwitch
               options={[
@@ -1056,7 +1056,7 @@ function MyPageClient() {
 
           {activeTab === 'play' ? (
             <section className='space-y-4'>
-              <div className='px-4 sm:px-6'>
+              <div className='px-0'>
                 <div className='relative'>
                   <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
                   <input
@@ -1124,7 +1124,7 @@ function MyPageClient() {
               </div>
 
               {loadingPlayRecords ? (
-                <div className='px-4 sm:px-6'>
+                <div className='px-0'>
                   <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
@@ -1135,7 +1135,7 @@ function MyPageClient() {
                   </div>
                 </div>
               ) : filteredPlayRecords.length > 0 ? (
-                <div className='px-4 sm:px-6'>
+                <div className='px-0'>
                   <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {filteredPlayRecords.map((record) => {
                       const { source, id } = parseStorageKey(record.key);
@@ -1207,7 +1207,7 @@ function MyPageClient() {
             </section>
           ) : activeTab === 'favorite' ? (
             <section className='space-y-4'>
-              <div className='px-4 sm:px-6'>
+              <div className='px-0'>
                 <div className='relative'>
                   <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
                   <input
@@ -1275,7 +1275,7 @@ function MyPageClient() {
               </div>
 
               {loadingFavorites ? (
-                <div className='px-4 sm:px-6'>
+                <div className='px-0'>
                   <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
@@ -1286,7 +1286,7 @@ function MyPageClient() {
                   </div>
                 </div>
               ) : filteredFavoriteItems.length > 0 ? (
-                <div className='px-4 sm:px-6'>
+                <div className='px-0'>
                   <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {filteredFavoriteItems.map((item) => (
                       <div
@@ -1339,7 +1339,7 @@ function MyPageClient() {
                   </div>
                 </div>
               ) : (
-                <div className='px-4 sm:px-6'>
+                <div className='px-0'>
                   <div className='py-8 text-center text-sm text-gray-500 dark:text-gray-400'>
                     {favoriteItems.length === 0
                       ? '\u6682\u65e0\u6536\u85cf\u5185\u5bb9'
@@ -1349,7 +1349,7 @@ function MyPageClient() {
               )}
             </section>
           ) : (
-            <section className='space-y-4 px-4 sm:px-6'>
+            <section className='space-y-4'>
               <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
                 <BarChart3 className='h-5 w-5' />
                 我的分析
