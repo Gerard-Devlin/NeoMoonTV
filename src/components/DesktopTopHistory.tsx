@@ -215,7 +215,7 @@ export default function DesktopTopHistory() {
         type='button'
         onClick={() => setOpen((prev) => !prev)}
         aria-label='历史记录'
-        className='inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-300 transition-colors hover:text-white'
+        className='inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10 hover:text-white'
       >
         <Clock3 className='h-5 w-5' />
       </button>
