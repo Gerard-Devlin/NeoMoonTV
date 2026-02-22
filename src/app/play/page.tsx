@@ -4267,14 +4267,14 @@ function PlayPageClient() {
                       <div
                         ref={castRailRef}
                         onScroll={updateCastScrollState}
-                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
+                        className='-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
                         {displayCast.slice(0, 12).map((item) => (
                           <button
                             type='button'
                             key={`play-cast-${item.id}-${item.name}`}
                             onClick={() => router.push(`/person/${item.id}`)}
-                            className='group w-[132px] flex-shrink-0 text-left'
+                            className='group flex w-[132px] flex-shrink-0 flex-col text-left'
                           >
                             <div className='relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black/20'>
                               {item.profile ? (
@@ -4289,11 +4289,11 @@ function PlayPageClient() {
                                 </div>
                               )}
                             </div>
-                            <div className='mt-2 space-y-1'>
-                              <p className='line-clamp-1 text-xs font-medium text-gray-900 dark:text-gray-100'>
+                            <div className='mt-2 h-14'>
+                              <p className='truncate text-xs font-medium leading-4 text-gray-900 dark:text-gray-100'>
                                 {item.name}
                               </p>
-                              <p className='line-clamp-2 text-[11px] text-gray-600 dark:text-gray-400'>
+                              <p className='mt-1.5 line-clamp-2 h-8 text-[11px] leading-4 text-gray-600 dark:text-gray-400'>
                                 {item.character || '角色未知'}
                               </p>
                             </div>
@@ -4374,7 +4374,7 @@ function PlayPageClient() {
                       <div
                         ref={recommendedRailRef}
                         onScroll={updateRecommendedScrollState}
-                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
+                        className='-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
                         {displayRecommendations.slice(0, 18).map((item) => (
                           <button
@@ -4388,7 +4388,7 @@ function PlayPageClient() {
                                 year: item.year,
                               });
                             }}
-                            className='group w-[132px] flex-shrink-0 text-left'
+                            className='group flex w-[132px] flex-shrink-0 flex-col text-left'
                           >
                             <div className='relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black/20'>
                               {item.poster ? (
@@ -4409,11 +4409,11 @@ function PlayPageClient() {
                                 </div>
                               ) : null}
                             </div>
-                            <div className='mt-2 space-y-1'>
-                              <p className='line-clamp-2 text-xs font-medium text-gray-900 dark:text-gray-100'>
+                            <div className='mt-2 h-14'>
+                              <p className='line-clamp-2 h-8 text-xs font-medium leading-4 text-gray-900 dark:text-gray-100'>
                                 {item.title}
                               </p>
-                              <p className='text-[11px] text-gray-600 dark:text-gray-400'>
+                              <p className='mt-0 h-4 text-[11px] leading-4 text-gray-600 dark:text-gray-400'>
                                 {item.year || '未知年份'}
                               </p>
                             </div>

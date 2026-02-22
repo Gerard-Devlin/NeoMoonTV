@@ -294,6 +294,30 @@ function CreditRail({ title, items, showAllHref }: CreditRailSection) {
   );
 }
 
+function PersonHeaderSkeleton() {
+  return (
+    <header className='mb-8 sm:mb-10'>
+      <div className='flex items-center justify-center gap-2'>
+        <span className='inline-flex h-8 w-8 animate-pulse rounded-full bg-zinc-700/80 sm:h-9 sm:w-9' />
+        <span className='h-5 w-28 animate-pulse rounded bg-zinc-700/70 sm:h-6 sm:w-36' />
+      </div>
+    </header>
+  );
+}
+
+function CreditCardSkeleton({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className='w-40 flex-shrink-0 sm:w-44'>
+      <div className='animate-pulse'>
+        <div className='aspect-[2/3] w-full rounded-[20px] bg-zinc-800' />
+        <div className={`px-1 ${compact ? 'mt-2' : 'mt-2.5'}`}>
+          <div className='mx-auto h-4 w-[76%] rounded bg-zinc-700/80' />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RailSkeleton({ title }: { title: string }) {
   return (
     <section className='mb-11 sm:mb-14'>
@@ -303,15 +327,52 @@ function RailSkeleton({ title }: { title: string }) {
         </h2>
         <ChevronRight className='h-4 w-4 text-zinc-600 sm:h-5 sm:w-5' />
       </div>
-      <div className='overflow-x-auto pt-2 pb-2 scrollbar-hide'>
+
+      <div className='relative hidden md:block'>
+        <div className='-mx-1 overflow-x-auto pt-2 pb-2 scrollbar-hide'>
+          <div className='flex min-w-max gap-[18px] px-1'>
+            {Array.from({ length: 12 }).map((_, index) => (
+              <CreditCardSkeleton
+                key={`${title}-desktop-skeleton-${index}`}
+                compact
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className='overflow-x-auto pt-2 pb-2 scrollbar-hide md:hidden'>
         <div className='flex min-w-max gap-[18px]'>
-          {Array.from({ length: 7 }).map((_, index) => (
-            <div
-              key={`${title}-skeleton-${index}`}
-              className='aspect-[2/3] w-40 flex-shrink-0 animate-pulse rounded-[20px] bg-zinc-800 sm:w-44'
-            />
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CreditCardSkeleton key={`${title}-mobile-skeleton-${index}`} compact />
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function SectionGridSkeleton({ title }: { title: string }) {
+  return (
+    <section>
+      <div className='mb-5 flex items-center gap-2'>
+        <span className='h-4 w-8 animate-pulse rounded bg-zinc-700/70' />
+        <span className='text-zinc-600'>/</span>
+        <span className='h-6 w-20 animate-pulse rounded bg-zinc-700/70' />
+        <span className='h-4 w-16 animate-pulse rounded bg-zinc-700/60' />
+      </div>
+
+      <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
+        {Array.from({ length: 12 }).map((_, index) => (
+          <div key={`${title}-grid-skeleton-${index}`} className='w-full'>
+            <div className='w-full animate-pulse'>
+              <div className='aspect-[2/3] w-full rounded-[20px] bg-zinc-800' />
+              <div className='mt-2.5 px-0.5'>
+                <div className='mx-auto h-4 w-[76%] rounded bg-zinc-700/80' />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -453,13 +514,18 @@ export default function PersonDetailPage() {
         <div className='mx-auto w-full max-w-[1900px] px-3 pb-8 pt-4 sm:px-8 sm:pb-12 sm:pt-6 md:px-10 md:pt-8'>
           {loading ? (
             <div className='space-y-2'>
-              <div className='mb-8 sm:mb-10'>
-                <div className='mx-auto h-9 w-48 animate-pulse rounded-full bg-zinc-700/80 sm:h-10 sm:w-56' />
-              </div>
-
-              <RailSkeleton title='电影' />
-              <RailSkeleton title='剧集' />
-              <RailSkeleton title='制片' />
+              <PersonHeaderSkeleton />
+              {selectedSection ? (
+                <SectionGridSkeleton
+                  title={selectedSection === 'movie' ? '电影' : '剧集'}
+                />
+              ) : (
+                <>
+                  <RailSkeleton title='电影' />
+                  <RailSkeleton title='剧集' />
+                  <RailSkeleton title='制片' />
+                </>
+              )}
             </div>
           ) : error ? (
             <div className='rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-red-100'>
