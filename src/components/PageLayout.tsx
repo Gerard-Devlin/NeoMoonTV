@@ -1,5 +1,6 @@
 import { BackButton } from './BackButton';
 import BackToTop from './BackToTop';
+import DesktopTopHistory from './DesktopTopHistory';
 import DesktopTopSearch from './DesktopTopSearch';
 import MobileNavController from './MobileNavController';
 import Sidebar from './Sidebar';
@@ -45,6 +46,7 @@ const PageLayout = ({
 
           <div className='absolute top-3.5 right-4 z-[700] hidden md:flex items-center gap-2'>
             {showDesktopTopSearch ? <DesktopTopSearch /> : null}
+            {showDesktopTopSearch ? <DesktopTopHistory /> : null}
             <UserMenu />
           </div>
 

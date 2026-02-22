@@ -3798,7 +3798,7 @@ function PlayPageClient() {
 
   if (loading) {
     return (
-      <PageLayout activePath='/play'>
+      <PageLayout activePath='/play' showDesktopTopSearch>
         <div className='relative flex items-center justify-center min-h-screen bg-transparent'>
           <div className='text-center max-w-md mx-auto px-6 w-full'>
             <div className='flex justify-center mb-8'>
@@ -3829,7 +3829,7 @@ function PlayPageClient() {
 
   if (error) {
     return (
-      <PageLayout activePath='/play'>
+      <PageLayout activePath='/play' showDesktopTopSearch>
         <div className='fixed inset-0 z-[850] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'>
           <div className='w-[min(92vw,24rem)] max-w-sm overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/90 p-6 text-zinc-900 shadow-[0_30px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl dark:border-zinc-700/60 dark:bg-zinc-900/85 dark:text-zinc-100'>
             <div className='space-y-5'>
@@ -3975,7 +3975,7 @@ function PlayPageClient() {
   };
 
   return (
-    <PageLayout activePath='/play' disableMobileTopPadding>
+    <PageLayout activePath='/play' disableMobileTopPadding showDesktopTopSearch>
       <div className='relative'>
         {playBackground ? (
           <div className='pointer-events-none absolute inset-0 -z-10 overflow-hidden'>
@@ -4485,3 +4485,4 @@ export default function PlayPage() {
     </Suspense>
   );
 }
+
