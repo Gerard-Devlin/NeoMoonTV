@@ -448,9 +448,38 @@ function PlayPageClient() {
     );
   };
 
+  const isIOSDevice = () => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    const maxTouchPoints = navigator.maxTouchPoints || 0;
+    return (
+      /iPhone|iPad|iPod/i.test(ua) ||
+      (platform === 'MacIntel' && maxTouchPoints > 1)
+    );
+  };
+
+  const tryEnterIOSNativeFullscreen = (
+    videoElement?: HTMLVideoElement | null
+  ) => {
+    if (!isIOSDevice()) return false;
+    const video = videoElement as any;
+    if (!video) return false;
+    if (video.webkitDisplayingFullscreen) return true;
+    if (typeof video.webkitEnterFullscreen !== 'function') return false;
+    try {
+      video.webkitEnterFullscreen();
+      return true;
+    } catch (err) {
+      console.debug('iOS 原生全屏触发失败:', err);
+      return false;
+    }
+  };
+
   const tryLockLandscape = async () => {
     if (typeof window === 'undefined') return;
     if (!isMobileViewport()) return;
+    if (isIOSDevice()) return;
     try {
       const orientationApi = (screen as any)?.orientation;
       if (orientationApi?.lock) {
@@ -1611,6 +1640,13 @@ function PlayPageClient() {
       };
       const handleCanvasDblClick = () => {
         if (artPlayerRef.current) {
+          if (
+            tryEnterIOSNativeFullscreen(
+              artPlayerRef.current.video as HTMLVideoElement
+            )
+          ) {
+            return;
+          }
           artPlayerRef.current.fullscreen = !artPlayerRef.current.fullscreen;
         }
       };
@@ -2307,6 +2343,14 @@ function PlayPageClient() {
     // f 键 = 切换全屏
     if (e.key === 'f' || e.key === 'F') {
       if (artPlayerRef.current) {
+        if (
+          tryEnterIOSNativeFullscreen(
+            artPlayerRef.current.video as HTMLVideoElement
+          )
+        ) {
+          e.preventDefault();
+          return;
+        }
         artPlayerRef.current.fullscreen = !artPlayerRef.current.fullscreen;
         e.preventDefault();
       }
@@ -3442,7 +3486,12 @@ function PlayPageClient() {
           isWebkitVideoFullscreen;
 
         if (enteringFullscreen) {
-          await tryLockLandscape();
+          const enteredNativeIOSFullscreen = tryEnterIOSNativeFullscreen(
+            videoElement as HTMLVideoElement
+          );
+          if (!enteredNativeIOSFullscreen) {
+            await tryLockLandscape();
+          }
         } else {
           await tryUnlockOrientation();
         }
