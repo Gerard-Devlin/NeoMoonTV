@@ -692,7 +692,7 @@ export const UserMenu: React.FC = () => {
         </div>
 
         {/* 操作按钮 */}
-        <div className='mt-6 flex gap-3 border-t border-zinc-700/80 pt-4'>
+        <div className='mt-6 flex gap-3 pt-4'>
           <button
             onClick={handleCloseChangePassword}
             className='flex-1 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50'

@@ -121,6 +121,7 @@ export default function DesktopTopSearch() {
   const trimmedQuery = query.trim();
   const shouldShowDropdown =
     open && trimmedQuery.length > 0 && (isLoading || hasSearched);
+  const isSearchActive = open || trimmedQuery.length > 0;
 
   useEffect(() => {
     if (!trimmedQuery) {
@@ -415,7 +416,11 @@ export default function DesktopTopSearch() {
     <div ref={rootRef} className='relative'>
       <form
         onSubmit={handleSubmit}
-        className='flex h-10 w-[min(52vw,560px)] max-w-[calc(100vw-10rem)] items-center rounded-full border border-zinc-700/80 bg-black/55 px-3 text-sm text-gray-200 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl focus-within:border-zinc-700/80'
+        className={`flex h-10 w-[min(52vw,560px)] max-w-[calc(100vw-10rem)] items-center rounded-full px-3 text-sm text-gray-200 backdrop-blur-xl focus-within:border-zinc-700/80 ${
+          isSearchActive
+            ? 'border border-zinc-700/80 bg-black/55 shadow-[0_12px_30px_rgba(0,0,0,0.45)]'
+            : 'border border-zinc-600/60 bg-black/[0.18] shadow-[0_8px_18px_rgba(0,0,0,0.22)]'
+        }`}
       >
         <Search className='h-4 w-4 shrink-0 text-gray-400' />
         <input
