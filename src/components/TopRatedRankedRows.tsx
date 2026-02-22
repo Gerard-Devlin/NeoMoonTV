@@ -321,7 +321,7 @@ function RankedSection({
   return (
     <section className='mb-10'>
       <div className='mb-4 flex items-center justify-between'>
-        <h2 className='text-2xl font-bold text-gray-900 dark:text-zinc-100'>{title}</h2>
+        <h2 className='text-xl font-bold text-gray-900 dark:text-zinc-100'>{title}</h2>
         <Link
           href={href}
           className='group inline-flex items-center gap-1 rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:border-sky-500/60 dark:hover:bg-sky-500/15 dark:hover:text-sky-300'

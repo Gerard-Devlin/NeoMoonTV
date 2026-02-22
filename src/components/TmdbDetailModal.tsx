@@ -97,7 +97,7 @@ export default function TmdbDetailModal({
     : { duration: 0.26, ease: smoothEase };
   const panelTransition = shouldReduceMotion
     ? { duration: 0.16, ease: smoothEase }
-    : { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.82 };
+    : { type: 'spring' as const, stiffness: 360, damping: 28, mass: 0.72 };
   const contentTransition = shouldReduceMotion
     ? { duration: 0.14 }
     : { duration: 0.28, ease: smoothEase, delay: 0.02 };
@@ -142,7 +142,7 @@ export default function TmdbDetailModal({
             initial={
               shouldReduceMotion
                 ? { opacity: 0.92, scale: 1 }
-                : { opacity: 0, y: 22, scale: 0.97 }
+                : { opacity: 0, y: 30, scale: 0.9 }
             }
             animate={
               shouldReduceMotion
@@ -152,7 +152,7 @@ export default function TmdbDetailModal({
             exit={
               shouldReduceMotion
                 ? { opacity: 0, scale: 1 }
-                : { opacity: 0, y: 12, scale: 0.985 }
+                : { opacity: 0, y: 16, scale: 0.95 }
             }
             transition={panelTransition}
             style={{ willChange: 'transform, opacity' }}
