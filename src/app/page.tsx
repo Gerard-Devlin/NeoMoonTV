@@ -66,10 +66,12 @@ function HomeClient() {
 
   return (
     <PageLayout showDesktopTopSearch>
-      <div className='px-2 sm:px-10 pb-4 sm:pb-8 overflow-visible'>
-        <TmdbHeroBanner />
+      <div className='overflow-visible px-0 pb-4 sm:px-10 sm:pb-8'>
+        <div className='px-2 sm:px-0'>
+          <TmdbHeroBanner />
+        </div>
 
-        <div className='w-full max-w-[95%] mx-auto mt-8'>
+        <div className='mt-8 px-4 sm:px-0'>
           <ContinueWatching />
           <TopRatedRankedRows />
           <HomeCuratedRows />
