@@ -34,8 +34,11 @@ interface CuratedRowSectionProps {
 }
 
 function CuratedRowSection({ row }: CuratedRowSectionProps) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<CuratedDiscoverItem[]>([]);
+  const [isInView, setIsInView] = useState(false);
+  const [hasRevealedItems, setHasRevealedItems] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,13 +69,47 @@ function CuratedRowSection({ row }: CuratedRowSectionProps) {
     };
   }, [row]);
 
+  useEffect(() => {
+    if (isInView) return;
+
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setIsInView(true);
+        observer.disconnect();
+      },
+      {
+        rootMargin: '0px 0px -14% 0px',
+        threshold: 0.12,
+      }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isInView]);
+
+  useEffect(() => {
+    if (!isInView || loading || items.length === 0 || hasRevealedItems) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      setHasRevealedItems(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [hasRevealedItems, isInView, items.length, loading]);
+
   const shouldHide = !loading && items.length === 0;
   if (shouldHide) {
     return null;
   }
 
   return (
-    <section className='mb-8'>
+    <section ref={sectionRef} className='mb-8'>
       <div className='mb-4 flex items-center justify-between'>
         <h2 className='text-xl font-bold text-gray-900 dark:text-zinc-100'>
           {row.title}
@@ -99,10 +136,15 @@ function CuratedRowSection({ row }: CuratedRowSectionProps) {
                 <div className='mt-2 h-4 rounded bg-gray-200 animate-pulse dark:bg-gray-800'></div>
               </div>
             ))
-          : items.map((item) => (
+          : items.map((item, index) => (
               <div
                 key={`${row.slug}-${item.id}`}
-                className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
+                className={`min-w-[160px] w-40 transform-gpu transition-all duration-500 ease-out will-change-transform motion-reduce:transform-none motion-reduce:transition-none motion-reduce:opacity-100 sm:min-w-[180px] sm:w-44 ${
+                  hasRevealedItems ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                }`}
+                style={{
+                  transitionDelay: hasRevealedItems ? `${Math.min(index, 11) * 55}ms` : '0ms',
+                }}
               >
                 <VideoCard
                   from='douban'

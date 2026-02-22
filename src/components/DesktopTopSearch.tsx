@@ -435,10 +435,10 @@ export default function DesktopTopSearch() {
   };
 
   return (
-    <div ref={rootRef} className='relative'>
+    <div ref={rootRef} className='relative m-0'>
       <form
         onSubmit={handleSubmit}
-        className={`flex h-10 w-[min(52vw,560px)] max-w-[calc(100vw-10rem)] items-center rounded-full px-3 text-sm text-gray-200 backdrop-blur-xl focus-within:border-zinc-700/80 ${
+        className={`m-0 flex h-10 w-[min(52vw,560px)] max-w-[calc(100vw-10rem)] items-center rounded-full px-3 text-sm text-gray-200 backdrop-blur-xl focus-within:border-zinc-700/80 ${
           isSearchActive
             ? 'border border-zinc-700/80 bg-black/55 shadow-[0_12px_30px_rgba(0,0,0,0.45)]'
             : 'border border-zinc-600/60 bg-black/[0.18] shadow-[0_8px_18px_rgba(0,0,0,0.22)]'

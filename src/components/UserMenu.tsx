@@ -721,10 +721,10 @@ export const UserMenu: React.FC = () => {
 
   return (
     <>
-      <div className='relative'>
+      <div className='relative m-0'>
         <button
           onClick={handleMenuClick}
-          className='inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10 hover:text-white'
+          className='m-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10 hover:text-white'
           aria-label='User Menu'
         >
           <User className='h-5 w-5' />

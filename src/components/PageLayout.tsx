@@ -44,10 +44,20 @@ const PageLayout = ({
             </div>
           )}
 
-          <div className='absolute top-3.5 right-4 z-[700] hidden md:flex items-center gap-2'>
-            {showDesktopTopSearch ? <DesktopTopSearch /> : null}
-            {showDesktopTopSearch ? <DesktopTopHistory /> : null}
-            <UserMenu />
+          <div className='absolute top-3.5 right-4 z-[700] hidden md:flex items-center gap-2 [&>*]:m-0'>
+            {showDesktopTopSearch ? (
+              <>
+                <div className='shrink-0'>
+                  <DesktopTopSearch />
+                </div>
+                <div className='shrink-0'>
+                  <DesktopTopHistory />
+                </div>
+              </>
+            ) : null}
+            <div className='shrink-0'>
+              <UserMenu />
+            </div>
           </div>
 
           <main

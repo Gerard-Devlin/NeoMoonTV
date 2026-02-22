@@ -210,7 +210,7 @@ export default function DesktopTopHistory() {
   }, [deleteTarget]);
 
   return (
-    <div ref={rootRef} className='relative'>
+    <div ref={rootRef} className='relative m-0'>
       <button
         type='button'
         onClick={() => setOpen((prev) => !prev)}
