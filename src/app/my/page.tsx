@@ -2,6 +2,7 @@
 
 import { BarChart3, Heart, History, Search, X } from 'lucide-react';
 import {
+  type MouseEvent,
   type SyntheticEvent,
   Suspense,
   useCallback,
@@ -151,6 +152,7 @@ const WATCH_FORMAT_LABELS: Record<'movie' | 'tv', string> = {
   tv: '连续剧',
   movie: '电影',
 };
+const LONG_PRESS_DURATION_MS = 420;
 const GENRE_SCOPE_OPTIONS: Array<{ value: GenreScope; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'movie', label: '电影' },
@@ -497,6 +499,9 @@ function MyPageClient() {
     tv: { data: [], posters: {} },
   });
   const genreCacheRef = useRef<Map<string, string[]>>(new Map());
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressPlayCardClickRef = useRef(false);
+  const suppressFavoriteCardClickRef = useRef(false);
 
   const updatePlayRecords = useCallback(
     (records: Record<string, PlayRecord>) => {
@@ -603,6 +608,18 @@ function MyPageClient() {
     setSelectedPlayKeys(new Set());
     setSelectedFavoriteKeys(new Set());
   }, [activeTab]);
+
+  const clearLongPressTimer = useCallback(() => {
+    if (!longPressTimerRef.current) return;
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, [clearLongPressTimer]);
 
   const normalizedPlaySearchKeyword = playSearchKeyword.trim().toLowerCase();
   const filteredPlayRecords = playRecords.filter((record) => {
@@ -923,6 +940,66 @@ function MyPageClient() {
     });
   };
 
+  const handlePlayLongPressStart = useCallback(
+    (key: string, pointerType: string) => {
+      if (isPlayBatchMode) return;
+      if (pointerType === 'mouse') return;
+
+      clearLongPressTimer();
+      longPressTimerRef.current = window.setTimeout(() => {
+        setIsPlayBatchMode(true);
+        setIsFavoriteBatchMode(false);
+        setSelectedFavoriteKeys(new Set());
+        setSelectedPlayKeys(new Set([key]));
+        suppressPlayCardClickRef.current = true;
+        longPressTimerRef.current = null;
+      }, LONG_PRESS_DURATION_MS);
+    },
+    [clearLongPressTimer, isPlayBatchMode]
+  );
+
+  const handleFavoriteLongPressStart = useCallback(
+    (key: string, pointerType: string) => {
+      if (isFavoriteBatchMode) return;
+      if (pointerType === 'mouse') return;
+
+      clearLongPressTimer();
+      longPressTimerRef.current = window.setTimeout(() => {
+        setIsFavoriteBatchMode(true);
+        setIsPlayBatchMode(false);
+        setSelectedPlayKeys(new Set());
+        setSelectedFavoriteKeys(new Set([key]));
+        suppressFavoriteCardClickRef.current = true;
+        longPressTimerRef.current = null;
+      }, LONG_PRESS_DURATION_MS);
+    },
+    [clearLongPressTimer, isFavoriteBatchMode]
+  );
+
+  const handleLongPressEnd = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handlePlayCardClickCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!suppressPlayCardClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressPlayCardClickRef.current = false;
+    },
+    []
+  );
+
+  const handleFavoriteCardClickCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!suppressFavoriteCardClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressFavoriteCardClickRef.current = false;
+    },
+    []
+  );
+
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -1064,7 +1141,20 @@ function MyPageClient() {
                       const { source, id } = parseStorageKey(record.key);
                       const isSelected = selectedPlayKeys.has(record.key);
                       return (
-                        <div key={record.key} className='relative'>
+                        <div
+                          key={record.key}
+                          className='relative'
+                          onPointerDown={(event) =>
+                            handlePlayLongPressStart(
+                              record.key,
+                              event.pointerType
+                            )
+                          }
+                          onPointerUp={handleLongPressEnd}
+                          onPointerLeave={handleLongPressEnd}
+                          onPointerCancel={handleLongPressEnd}
+                          onClickCapture={handlePlayCardClickCapture}
+                        >
                           <VideoCard
                             id={id}
                             source={source}
@@ -1199,7 +1289,20 @@ function MyPageClient() {
                 <div className='px-4 sm:px-6'>
                   <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {filteredFavoriteItems.map((item) => (
-                      <div key={item.key} className='relative'>
+                      <div
+                        key={item.key}
+                        className='relative'
+                        onPointerDown={(event) =>
+                          handleFavoriteLongPressStart(
+                            item.key,
+                            event.pointerType
+                          )
+                        }
+                        onPointerUp={handleLongPressEnd}
+                        onPointerLeave={handleLongPressEnd}
+                        onPointerCancel={handleLongPressEnd}
+                        onClickCapture={handleFavoriteCardClickCapture}
+                      >
                         <VideoCard
                           id={item.id}
                           source={item.source}

@@ -1,7 +1,9 @@
 ﻿/* eslint-disable no-console */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { PlayRecord } from '@/lib/db.client';
 import {
@@ -11,7 +13,6 @@ import {
 } from '@/lib/db.client';
 
 import ScrollableRow from '@/components/ScrollableRow';
-import VideoCard from '@/components/VideoCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,12 +23,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import VideoCard from '@/components/VideoCard';
 
 interface ContinueWatchingProps {
   className?: string;
 }
 
+const LONG_PRESS_DURATION_MS = 420;
+
 export default function ContinueWatching({ className }: ContinueWatchingProps) {
+  const router = useRouter();
   const [playRecords, setPlayRecords] = useState<
     (PlayRecord & { key: string })[]
   >([]);
@@ -36,6 +41,8 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressCardClickRef = useRef(false);
 
   const updatePlayRecords = (allRecords: Record<string, PlayRecord>) => {
     const recordsArray = Object.entries(allRecords).map(([key, record]) => ({
@@ -80,9 +87,17 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     });
   }, [playRecords]);
 
-  if (!loading && playRecords.length === 0) {
-    return null;
-  }
+  const clearLongPressTimer = useCallback(() => {
+    if (!longPressTimerRef.current) return;
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, [clearLongPressTimer]);
 
   const getProgress = (record: PlayRecord) => {
     if (record.total_time === 0) return 0;
@@ -112,6 +127,36 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     });
   };
 
+  const handleLongPressStart = useCallback(
+    (key: string, pointerType: string) => {
+      if (isBatchMode) return;
+      if (pointerType === 'mouse') return;
+
+      clearLongPressTimer();
+      longPressTimerRef.current = window.setTimeout(() => {
+        setIsBatchMode(true);
+        setSelectedKeys(new Set([key]));
+        suppressCardClickRef.current = true;
+        longPressTimerRef.current = null;
+      }, LONG_PRESS_DURATION_MS);
+    },
+    [clearLongPressTimer, isBatchMode]
+  );
+
+  const handleLongPressEnd = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handleCardClickCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!suppressCardClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressCardClickRef.current = false;
+    },
+    []
+  );
+
   const handleConfirmDelete = async () => {
     setDeleting(true);
     try {
@@ -133,11 +178,15 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     }
   };
 
+  if (!loading && playRecords.length === 0) {
+    return null;
+  }
+
   return (
     <section className={`mb-8 ${className || ''}`}>
       <div className='mb-4 flex items-center justify-between'>
         <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-          {'继续观看'}
+          继续观看
         </h2>
         {!loading && playRecords.length > 0 ? (
           isBatchMode ? (
@@ -164,10 +213,11 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
           ) : (
             <button
               type='button'
-              className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              onClick={() => setIsBatchMode(true)}
+              onClick={() => router.push('/my')}
+              className='group inline-flex items-center gap-1 rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:border-sky-500/60 dark:hover:bg-sky-500/15 dark:hover:text-sky-300'
             >
-              {'\u6279\u91cf\u5904\u7406'}
+              <span>查看全部</span>
+              <ChevronRight className='h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
             </button>
           )
         ) : null}
@@ -193,6 +243,13 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
                 <div
                   key={record.key}
                   className='relative min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
+                  onPointerDown={(event) =>
+                    handleLongPressStart(record.key, event.pointerType)
+                  }
+                  onPointerUp={handleLongPressEnd}
+                  onPointerLeave={handleLongPressEnd}
+                  onPointerCancel={handleLongPressEnd}
+                  onClickCapture={handleCardClickCapture}
                 >
                   <VideoCard
                     id={id}

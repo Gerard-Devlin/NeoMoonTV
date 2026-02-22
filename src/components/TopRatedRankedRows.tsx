@@ -1,10 +1,11 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Play, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   buildCuratedCategoryQuery,
@@ -58,6 +59,15 @@ interface ActiveRankedItem {
   year: string;
 }
 
+interface SeasonPickerState {
+  open: boolean;
+  baseTitle: string;
+  year: string;
+  seasonCount: number;
+  logo?: string;
+  backdrop?: string;
+}
+
 const MOVIE_TOP_RATED_CONFIG =
   TOP_RATED_CATEGORY_CONFIGS.find((item) => item.slug === 'top-rated-movies') ||
   ({
@@ -84,6 +94,42 @@ function safeImageUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+function buildPlayUrlByTitle(
+  title: string,
+  mediaType: TmdbMediaType,
+  year?: string
+): string {
+  const params = new URLSearchParams({
+    title,
+    stype: mediaType,
+  });
+  if (year) {
+    params.set('year', year);
+  }
+  return `/play?${params.toString()}`;
+}
+
+function hasSeasonHint(value: string): boolean {
+  const text = (value || '').toLowerCase();
+  if (!text.trim()) return false;
+  return (
+    /\u7b2c\s*[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07\u4e24\d]+\s*\u5b63/.test(
+      text
+    ) || /(?:season|series|s)\s*0*\d{1,2}/i.test(text)
+  );
+}
+
+function stripSeasonHint(value: string): string {
+  return (value || '')
+    .replace(
+      /\u7b2c\s*[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07\u4e24\d]+\s*\u5b63/gi,
+      ' '
+    )
+    .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function getRankGradientClass(rank: number): string {
@@ -459,6 +505,12 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailData, setDetailData] = useState<TmdbDetailResponse | null>(null);
   const [activeItem, setActiveItem] = useState<ActiveRankedItem | null>(null);
+  const [seasonPicker, setSeasonPicker] = useState<SeasonPickerState>({
+    open: false,
+    baseTitle: '',
+    year: '',
+    seasonCount: 0,
+  });
   const detailCacheRef = useRef<Map<string, TmdbDetailResponse>>(new Map());
   const detailRequestIdRef = useRef(0);
 
@@ -642,20 +694,134 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
     setDetailError(null);
   }, []);
 
-  const handlePlayFromDetail = useCallback(() => {
+  const handleCloseSeasonPicker = useCallback(() => {
+    setSeasonPicker({
+      open: false,
+      baseTitle: '',
+      year: '',
+      seasonCount: 0,
+    });
+  }, []);
+
+  const handleSeasonPickerBackdropPointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      handleCloseSeasonPicker();
+    },
+    [handleCloseSeasonPicker]
+  );
+
+  const resolveSeasonCountForPlay = useCallback(
+    async (
+      title: string,
+      year: string,
+      currentItem: ActiveRankedItem | null
+    ): Promise<number> => {
+      if (
+        detailData?.mediaType === 'tv' &&
+        typeof detailData.seasons === 'number' &&
+        Number.isFinite(detailData.seasons) &&
+        detailData.seasons > 1
+      ) {
+        return Math.floor(detailData.seasons);
+      }
+
+      const targetId =
+        detailData?.mediaType === 'tv'
+          ? String(detailData.id)
+          : currentItem?.mediaType === 'tv'
+          ? currentItem.id
+          : '';
+
+      if (targetId) {
+        try {
+          const detail = await fetchTmdbDetailById(targetId, 'tv');
+          if (
+            typeof detail.seasons === 'number' &&
+            Number.isFinite(detail.seasons) &&
+            detail.seasons > 1
+          ) {
+            return Math.floor(detail.seasons);
+          }
+        } catch {
+          // fallback to title lookup
+        }
+      }
+
+      try {
+        const params = new URLSearchParams({
+          title,
+          type: 'tv',
+        });
+        if (year) {
+          params.set('year', year);
+        }
+        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+        if (!response.ok) return 0;
+        const payload = (await response.json()) as { seasons?: number | null };
+        const seasons = payload.seasons;
+        if (typeof seasons !== 'number' || !Number.isFinite(seasons) || seasons <= 1) {
+          return 0;
+        }
+        return Math.floor(seasons);
+      } catch {
+        return 0;
+      }
+    },
+    [detailData]
+  );
+
+  const handleSeasonPick = useCallback(
+    (season: number) => {
+      const baseTitle = seasonPicker.baseTitle.trim();
+      if (!baseTitle) return;
+      const seasonTitle = `${baseTitle} 第${season}季`;
+      const targetYear = seasonPicker.year;
+      handleCloseSeasonPicker();
+      router.push(buildPlayUrlByTitle(seasonTitle, 'tv', targetYear));
+    },
+    [handleCloseSeasonPicker, router, seasonPicker.baseTitle, seasonPicker.year]
+  );
+
+  const handlePlayFromDetail = useCallback(async () => {
     const title = (detailData?.title || activeItem?.title || '').trim();
     if (!title) return;
 
     const year = (detailData?.year || activeItem?.year || '').trim();
     const mediaType = detailData?.mediaType || activeItem?.mediaType || 'movie';
 
+    if (mediaType === 'tv' && !hasSeasonHint(title)) {
+      const seasonCount = await resolveSeasonCountForPlay(title, year, activeItem);
+      if (seasonCount > 1) {
+        setDetailOpen(false);
+        setSeasonPicker({
+          open: true,
+          baseTitle: stripSeasonHint(title) || title,
+          year,
+          seasonCount,
+          logo: detailData?.logo,
+          backdrop: detailData?.backdrop || detailData?.poster,
+        });
+        return;
+      }
+    }
+
     setDetailOpen(false);
-    router.push(
-      `/play?title=${encodeURIComponent(title)}${
-        year ? `&year=${encodeURIComponent(year)}` : ''
-      }&stype=${mediaType}`
-    );
-  }, [activeItem, detailData, router]);
+    router.push(buildPlayUrlByTitle(title, mediaType, year));
+  }, [activeItem, detailData, resolveSeasonCountForPlay, router]);
+
+  useEffect(() => {
+    if (!seasonPicker.open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseSeasonPicker();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [handleCloseSeasonPicker, seasonPicker.open]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -721,6 +887,92 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
         onRetry={activeItem ? handleRetryDetail : undefined}
         playLabel={'\u7acb\u5373\u64ad\u653e'}
       />
+
+      {seasonPicker.open && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
+              onPointerDown={handleSeasonPickerBackdropPointerDown}
+            >
+              <div
+                role='dialog'
+                aria-modal='false'
+                aria-label='请选择要播放的季'
+                className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <div className='absolute inset-0'>
+                  {seasonPicker.backdrop ? (
+                    <Image
+                      src={safeImageUrl(seasonPicker.backdrop)}
+                      alt={seasonPicker.baseTitle}
+                      fill
+                      className='object-cover opacity-30'
+                      unoptimized
+                    />
+                  ) : null}
+                  <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
+                </div>
+
+                <div className='relative p-6'>
+                  <button
+                    type='button'
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleCloseSeasonPicker();
+                    }}
+                    className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
+                    aria-label='关闭选季弹窗'
+                  >
+                    <X size={16} />
+                  </button>
+
+                  <div className='space-y-2 text-center sm:text-left'>
+                    <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
+                    {seasonPicker.logo ? (
+                      <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
+                        <Image
+                          src={safeImageUrl(seasonPicker.logo)}
+                          alt={`${seasonPicker.baseTitle} logo`}
+                          fill
+                          className='object-contain object-center sm:object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
+                          unoptimized
+                        />
+                      </div>
+                    ) : (
+                      <p className='text-sm text-zinc-300/90'>
+                        {seasonPicker.baseTitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
+                    {Array.from(
+                      { length: Math.max(1, seasonPicker.seasonCount) },
+                      (_, idx) => idx + 1
+                    ).map((season) => (
+                      <button
+                        key={`top-rated-season-pick-${season}`}
+                        type='button'
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleSeasonPick(season);
+                        }}
+                        className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
+                      >
+                        {`第 ${season} 季`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }
