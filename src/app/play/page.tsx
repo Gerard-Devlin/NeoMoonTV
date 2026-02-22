@@ -142,11 +142,13 @@ function PlayPageClient() {
   const castRailRef = useRef<HTMLDivElement | null>(null);
   const [canScrollCastLeft, setCanScrollCastLeft] = useState(false);
   const [canScrollCastRight, setCanScrollCastRight] = useState(false);
+  const [castRailHovered, setCastRailHovered] = useState(false);
   const recommendedRailRef = useRef<HTMLDivElement | null>(null);
   const [canScrollRecommendedLeft, setCanScrollRecommendedLeft] =
     useState(false);
   const [canScrollRecommendedRight, setCanScrollRecommendedRight] =
     useState(false);
+  const [recommendedRailHovered, setRecommendedRailHovered] = useState(false);
   const [recommendedDetailOpen, setRecommendedDetailOpen] = useState(false);
   const [recommendedDetailLoading, setRecommendedDetailLoading] =
     useState(false);
@@ -4250,11 +4252,18 @@ function PlayPageClient() {
                     <h2 className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
                       主演
                     </h2>
-                    <div className='relative'>
+                    <div
+                      className='relative'
+                      onMouseEnter={() => {
+                        setCastRailHovered(true);
+                        updateCastScrollState();
+                      }}
+                      onMouseLeave={() => setCastRailHovered(false)}
+                    >
                       <div
                         ref={castRailRef}
                         onScroll={updateCastScrollState}
-                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth'
+                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
                         {displayCast.slice(0, 12).map((item) => (
                           <button
@@ -4287,28 +4296,60 @@ function PlayPageClient() {
                           </button>
                         ))}
                       </div>
-                      <button
-                        type='button'
-                        onClick={scrollCastLeft}
-                        className={`absolute left-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
-                          canScrollCastLeft ? 'opacity-100' : 'opacity-60'
-                        }`}
-                        aria-label='向左查看更多演员'
-                        title='向左查看更多'
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-                      <button
-                        type='button'
-                        onClick={scrollCastRight}
-                        className={`absolute right-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
-                          canScrollCastRight ? 'opacity-100' : 'opacity-60'
-                        }`}
-                        aria-label='向右查看更多演员'
-                        title='向右查看更多'
-                      >
-                        <ChevronRight size={18} />
-                      </button>
+                      {canScrollCastLeft ? (
+                        <div
+                          className={`absolute left-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                            castRailHovered ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          style={{ background: 'transparent', pointerEvents: 'none' }}
+                        >
+                          <div
+                            className='absolute inset-0 flex items-center justify-center'
+                            style={{
+                              top: '40%',
+                              bottom: '60%',
+                              left: '-4.5rem',
+                              pointerEvents: 'auto',
+                            }}
+                          >
+                            <button
+                              type='button'
+                              onClick={scrollCastLeft}
+                              className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                              aria-label='向左查看更多演员'
+                            >
+                              <ChevronLeft className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {canScrollCastRight ? (
+                        <div
+                          className={`absolute right-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                            castRailHovered ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          style={{ background: 'transparent', pointerEvents: 'none' }}
+                        >
+                          <div
+                            className='absolute inset-0 flex items-center justify-center'
+                            style={{
+                              top: '40%',
+                              bottom: '60%',
+                              right: '-4.5rem',
+                              pointerEvents: 'auto',
+                            }}
+                          >
+                            <button
+                              type='button'
+                              onClick={scrollCastRight}
+                              className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                              aria-label='向右查看更多演员'
+                            >
+                              <ChevronRight className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </section>
                 ) : null}
@@ -4318,11 +4359,18 @@ function PlayPageClient() {
                     <h2 className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
                       相关推荐
                     </h2>
-                    <div className='relative'>
+                    <div
+                      className='relative'
+                      onMouseEnter={() => {
+                        setRecommendedRailHovered(true);
+                        updateRecommendedScrollState();
+                      }}
+                      onMouseLeave={() => setRecommendedRailHovered(false)}
+                    >
                       <div
                         ref={recommendedRailRef}
                         onScroll={updateRecommendedScrollState}
-                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth'
+                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
                         {displayRecommendations.slice(0, 18).map((item) => (
                           <button
@@ -4368,28 +4416,60 @@ function PlayPageClient() {
                           </button>
                         ))}
                       </div>
-                      <button
-                        type='button'
-                        onClick={scrollRecommendedLeft}
-                        className={`absolute left-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
-                          canScrollRecommendedLeft ? 'opacity-100' : 'opacity-60'
-                        }`}
-                        aria-label='向左查看更多推荐'
-                        title='向左查看更多'
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-                      <button
-                        type='button'
-                        onClick={scrollRecommendedRight}
-                        className={`absolute right-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
-                          canScrollRecommendedRight ? 'opacity-100' : 'opacity-60'
-                        }`}
-                        aria-label='向右查看更多推荐'
-                        title='向右查看更多'
-                      >
-                        <ChevronRight size={18} />
-                      </button>
+                      {canScrollRecommendedLeft ? (
+                        <div
+                          className={`absolute left-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                            recommendedRailHovered ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          style={{ background: 'transparent', pointerEvents: 'none' }}
+                        >
+                          <div
+                            className='absolute inset-0 flex items-center justify-center'
+                            style={{
+                              top: '40%',
+                              bottom: '60%',
+                              left: '-4.5rem',
+                              pointerEvents: 'auto',
+                            }}
+                          >
+                            <button
+                              type='button'
+                              onClick={scrollRecommendedLeft}
+                              className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                              aria-label='向左查看更多推荐'
+                            >
+                              <ChevronLeft className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {canScrollRecommendedRight ? (
+                        <div
+                          className={`absolute right-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                            recommendedRailHovered ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          style={{ background: 'transparent', pointerEvents: 'none' }}
+                        >
+                          <div
+                            className='absolute inset-0 flex items-center justify-center'
+                            style={{
+                              top: '40%',
+                              bottom: '60%',
+                              right: '-4.5rem',
+                              pointerEvents: 'auto',
+                            }}
+                          >
+                            <button
+                              type='button'
+                              onClick={scrollRecommendedRight}
+                              className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                              aria-label='向右查看更多推荐'
+                            >
+                              <ChevronRight className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </section>
                 ) : null}
