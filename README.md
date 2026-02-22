@@ -1,10 +1,10 @@
-# MoonTV
+# NeoMoonTV
 
 <div align="center">
   <img src="public/logo.png" alt="LibreTV Logo" width="120">
 </div>
 
-> 🎬 **MoonTV** 是一个开箱即用的、跨平台的影视聚合播放器。它基于 **Next.js 14** + **Tailwind&nbsp;CSS** + **TypeScript** 构建，支持多资源搜索、在线播放、收藏同步、播放记录、本地/云端存储，让你可以随时随地畅享海量免费影视内容。
+> 🎬 **NeoMoonTV** 是一个开箱即用的、跨平台的影视聚合播放器。它基于 **Next.js 14** + **Tailwind&nbsp;CSS** + **TypeScript** 构建，支持多资源搜索、在线播放、收藏同步、播放记录、本地/云端存储，让你可以随时随地畅享海量免费影视内容。
 
 <div align="center">
 
@@ -40,6 +40,7 @@
 <img src="public/screenshot1.png" alt="项目截图" style="max-width:600px">
 <img src="public/screenshot2.png" alt="项目截图" style="max-width:600px">
 <img src="public/screenshot3.png" alt="项目截图" style="max-width:600px">
+<img src="public/screenshot4.png" alt="项目截图" style="max-width:600px">
 
 ## 🗺 目录
 

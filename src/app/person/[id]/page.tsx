@@ -190,14 +190,14 @@ function CreditRail({ title, items, showAllHref }: CreditRailSection) {
       >
         <div
           ref={desktopScrollRef}
-          className='-mx-1 overflow-x-auto pb-1 scrollbar-hide'
+          className='-mx-1 overflow-x-auto pt-2 pb-2 scrollbar-hide'
           onScroll={checkDesktopScroll}
         >
-          <div className='flex min-w-max gap-3 px-1 sm:gap-4'>
+          <div className='flex min-w-max gap-[18px] px-1'>
             {items.map((item, index) => (
               <div
                 key={`${title}-${item.mediaType}-${item.id}-${item.role || 'role'}-${index}`}
-                className='w-[145px] flex-shrink-0 sm:w-[170px] md:w-[190px] lg:w-[210px]'
+                className='w-40 flex-shrink-0 sm:w-44'
               >
                 <VideoCard
                   id={String(item.id)}
@@ -205,7 +205,6 @@ function CreditRail({ title, items, showAllHref }: CreditRailSection) {
                   poster={item.poster}
                   year={item.year}
                   rate={item.score}
-                  douban_id={String(item.id)}
                   from='douban'
                   type={item.mediaType}
                 />
@@ -271,12 +270,12 @@ function CreditRail({ title, items, showAllHref }: CreditRailSection) {
         ) : null}
       </div>
 
-      <div className='overflow-x-auto pb-1 scrollbar-hide md:hidden'>
-        <div className='flex min-w-max gap-3 sm:gap-4'>
+      <div className='overflow-x-auto pt-2 pb-2 scrollbar-hide md:hidden'>
+        <div className='flex min-w-max gap-[18px]'>
           {items.map((item, index) => (
             <div
               key={`${title}-mobile-${item.mediaType}-${item.id}-${item.role || 'role'}-${index}`}
-              className='w-[145px] flex-shrink-0 sm:w-[170px]'
+              className='w-40 flex-shrink-0 sm:w-44'
             >
               <VideoCard
                 id={String(item.id)}
@@ -284,7 +283,6 @@ function CreditRail({ title, items, showAllHref }: CreditRailSection) {
                 poster={item.poster}
                 year={item.year}
                 rate={item.score}
-                douban_id={String(item.id)}
                 from='douban'
                 type={item.mediaType}
               />
@@ -305,12 +303,12 @@ function RailSkeleton({ title }: { title: string }) {
         </h2>
         <ChevronRight className='h-4 w-4 text-zinc-600 sm:h-5 sm:w-5' />
       </div>
-      <div className='overflow-x-auto pb-1 scrollbar-hide'>
-        <div className='flex min-w-max gap-3 sm:gap-4'>
+      <div className='overflow-x-auto pt-2 pb-2 scrollbar-hide'>
+        <div className='flex min-w-max gap-[18px]'>
           {Array.from({ length: 7 }).map((_, index) => (
             <div
               key={`${title}-skeleton-${index}`}
-              className='h-[218px] w-[145px] flex-shrink-0 animate-pulse rounded-[20px] bg-zinc-800 sm:h-[255px] sm:w-[170px] md:h-[285px] md:w-[190px] lg:h-[315px] lg:w-[210px]'
+              className='aspect-[2/3] w-40 flex-shrink-0 animate-pulse rounded-[20px] bg-zinc-800 sm:w-44'
             />
           ))}
         </div>
@@ -509,7 +507,7 @@ export default function PersonDetailPage() {
                     </span>
                   </div>
 
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-[18px] sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {selectedSectionData.items.map((item, index) => (
                       <div
                         key={`${selectedSectionData.title}-all-${item.mediaType}-${item.id}-${index}`}
@@ -520,7 +518,6 @@ export default function PersonDetailPage() {
                           poster={item.poster}
                           year={item.year}
                           rate={item.score}
-                          douban_id={String(item.id)}
                           from='douban'
                           type={item.mediaType}
                         />
