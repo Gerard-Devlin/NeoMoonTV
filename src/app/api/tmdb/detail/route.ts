@@ -7,15 +7,18 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const DETAIL_CACHE_SECONDS = 600;
 const DETAIL_REQUEST_TIMEOUT_MS = 10000;
 const DETAIL_CACHE_MAX_ENTRIES = 300;
-const DETAIL_CACHE_VERSION = 'v3';
+const DETAIL_CACHE_VERSION = 'v5';
 
 type TmdbMediaType = 'movie' | 'tv';
+type LogoLanguagePreference = 'zh' | 'en';
 
 interface TmdbLogoItem {
   file_path?: string | null;
   iso_639_1?: string | null;
   vote_average?: number;
   width?: number;
+  height?: number;
+  aspect_ratio?: number;
 }
 
 interface TmdbDetailRawGenre {
@@ -112,6 +115,7 @@ interface TmdbDetailResponse {
   mediaType: TmdbMediaType;
   title: string;
   logo?: string;
+  logoAspectRatio?: number;
   overview: string;
   backdrop: string;
   poster: string;
@@ -159,6 +163,12 @@ const tmdbDetailCache =
 
 function normalizeMediaType(value: string | null): TmdbMediaType {
   return value === 'tv' || value === 'show' ? 'tv' : 'movie';
+}
+
+function normalizeLogoLanguagePreference(
+  value: string | null
+): LogoLanguagePreference {
+  return value === 'en' ? 'en' : 'zh';
 }
 
 function normalizeYear(value: string | null): string {
@@ -494,13 +504,23 @@ function pickTrailerUrlFromRaw(raw: TmdbDetailRawResponse): string {
   return key ? `https://www.youtube.com/watch?v=${key}` : '';
 }
 
-function selectBestLogoPath(logos: TmdbLogoItem[]): string {
-  if (!logos.length) return '';
+function selectBestLogo(
+  logos: TmdbLogoItem[],
+  logoLanguagePreference: LogoLanguagePreference
+): { filePath: string; aspectRatio?: number } | null {
+  if (!logos.length) return null;
 
   const getLanguagePriority = (lang?: string | null): number => {
+    if (logoLanguagePreference === 'en') {
+      if (lang === 'en') return 4;
+      if (lang === null || lang === undefined || lang === '') return 3;
+      if (lang === 'zh') return 2;
+      return 1;
+    }
+
     if (lang === 'zh') return 4;
-    if (lang === 'en') return 3;
-    if (lang === null || lang === undefined) return 2;
+    if (lang === null || lang === undefined || lang === '') return 3;
+    if (lang === 'en') return 2;
     return 1;
   };
 
@@ -515,7 +535,25 @@ function selectBestLogoPath(logos: TmdbLogoItem[]): string {
       return (b.width || 0) - (a.width || 0);
     });
 
-  return sorted[0]?.file_path || '';
+  const best = sorted[0];
+  if (!best?.file_path) return null;
+
+  const aspectRatioRaw =
+    typeof best.aspect_ratio === 'number' && Number.isFinite(best.aspect_ratio)
+      ? best.aspect_ratio
+      : typeof best.width === 'number' &&
+          typeof best.height === 'number' &&
+          best.width > 0 &&
+          best.height > 0
+        ? best.width / best.height
+        : null;
+
+  return {
+    filePath: best.file_path,
+    ...(aspectRatioRaw && aspectRatioRaw > 0
+      ? { aspectRatio: aspectRatioRaw }
+      : {}),
+  };
 }
 
 function buildCacheHeaders(): HeadersInit {
@@ -675,18 +713,22 @@ async function fetchTmdbDetailRaw(
   mediaType: TmdbMediaType,
   id: number,
   apiKey: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  logoLanguagePreference: LogoLanguagePreference
 ): Promise<TmdbDetailRawResponse | null> {
   const appendToResponse =
     mediaType === 'movie'
       ? 'credits,videos,release_dates,images,recommendations'
       : 'credits,videos,content_ratings,images,recommendations';
 
+  const includeImageLanguage =
+    logoLanguagePreference === 'en' ? 'en,null,zh' : 'zh,null,en';
+
   const params = new URLSearchParams({
     api_key: apiKey,
     language: 'zh-CN',
     append_to_response: appendToResponse,
-    include_image_language: 'zh,en,null',
+    include_image_language: includeImageLanguage,
   });
 
   try {
@@ -711,6 +753,7 @@ function mapRawDetailToResponse(
   input: {
     id: number;
     mediaType: TmdbMediaType;
+    logoLanguagePreference: LogoLanguagePreference;
     fallbackTitle: string;
     fallbackYear: string;
     fallbackPoster: string;
@@ -737,7 +780,10 @@ function mapRawDetailToResponse(
       ? (raw.runtime ?? null)
       : (raw.episode_run_time?.[0] ?? null);
 
-  const logoPath = selectBestLogoPath(raw.images?.logos || []);
+  const selectedLogo = selectBestLogo(
+    raw.images?.logos || [],
+    input.logoLanguagePreference
+  );
   const recommendations = (raw.recommendations?.results || [])
     .slice(0, 20)
     .map((item) => {
@@ -784,7 +830,10 @@ function mapRawDetailToResponse(
     id: raw.id || input.id,
     mediaType: input.mediaType,
     title: (raw.title || raw.name || input.fallbackTitle || '').trim(),
-    logo: logoPath ? `${TMDB_IMAGE_BASE_URL}/w500${logoPath}` : undefined,
+    logo: selectedLogo?.filePath
+      ? `${TMDB_IMAGE_BASE_URL}/w500${selectedLogo.filePath}`
+      : undefined,
+    logoAspectRatio: selectedLogo?.aspectRatio,
     overview: (raw.overview || '').trim() || 'No overview available.',
     backdrop: toImageUrl(raw.backdrop_path, 'original'),
     poster: toImageUrl(raw.poster_path, 'w500') || input.fallbackPoster || '',
@@ -813,6 +862,11 @@ export async function GET(request: Request) {
   const year = normalizeYear(searchParams.get('year'));
   const fallbackPoster = (searchParams.get('poster') || '').trim();
   const fallbackScore = (searchParams.get('score') || '').trim();
+  const logoLanguagePreference = normalizeLogoLanguagePreference(
+    searchParams.get('logoLang') ||
+      searchParams.get('logo_language') ||
+      searchParams.get('logo_lang')
+  );
   const mediaType = normalizeMediaType(
     searchParams.get('mediaType') || searchParams.get('type')
   );
@@ -836,8 +890,10 @@ export async function GET(request: Request) {
   }
 
   const cacheKey = hasValidId
-    ? `id:${DETAIL_CACHE_VERSION}:${mediaType}:${rawId}`
-    : `title:${DETAIL_CACHE_VERSION}:${mediaType}:${normalizeTitleForCache(title)}:${year}`;
+    ? `id:${DETAIL_CACHE_VERSION}:${mediaType}:${logoLanguagePreference}:${rawId}`
+    : `title:${DETAIL_CACHE_VERSION}:${mediaType}:${logoLanguagePreference}:${normalizeTitleForCache(
+        title
+      )}:${year}`;
 
   const cacheHit = readDetailCache(cacheKey);
   if (cacheHit) {
@@ -873,7 +929,8 @@ export async function GET(request: Request) {
       resolvedMediaType,
       resolvedId,
       apiKey,
-      controller.signal
+      controller.signal,
+      logoLanguagePreference
     );
 
     if (!rawDetail) {
@@ -902,6 +959,7 @@ export async function GET(request: Request) {
     const payload = mapRawDetailToResponse(rawDetail, {
       id: resolvedId,
       mediaType: resolvedMediaType,
+      logoLanguagePreference,
       fallbackTitle: title,
       fallbackYear: year,
       fallbackPoster,
@@ -910,7 +968,7 @@ export async function GET(request: Request) {
 
     writeDetailCache(cacheKey, payload);
     writeDetailCache(
-      `id:${DETAIL_CACHE_VERSION}:${resolvedMediaType}:${resolvedId}`,
+      `id:${DETAIL_CACHE_VERSION}:${resolvedMediaType}:${logoLanguagePreference}:${resolvedId}`,
       payload
     );
 

@@ -7,12 +7,27 @@ export const runtime = 'edge';
 
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+const TMDB_BACKDROP_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w1280';
 const TMDB_DISCOVER_TIMEOUT_MS = 10000;
+const MOVIE_SORT_BY_ALLOWLIST = new Set([
+  'popularity.desc',
+  'vote_average.desc',
+  'vote_count.desc',
+  'primary_release_date.desc',
+  'revenue.desc',
+]);
+const TV_SORT_BY_ALLOWLIST = new Set([
+  'popularity.desc',
+  'vote_average.desc',
+  'vote_count.desc',
+  'first_air_date.desc',
+]);
 
 interface TmdbDiscoverMovieItem {
   id?: number;
   title?: string;
   poster_path?: string | null;
+  backdrop_path?: string | null;
   release_date?: string;
   vote_average?: number;
 }
@@ -21,6 +36,7 @@ interface TmdbDiscoverTvItem {
   id?: number;
   name?: string;
   poster_path?: string | null;
+  backdrop_path?: string | null;
   first_air_date?: string;
   vote_average?: number;
 }
@@ -70,6 +86,28 @@ function parsePositiveNumber(value: string | null): string {
   return String(parsed);
 }
 
+function parseIdList(value: string | null): string {
+  if (!value) return '';
+  const ids = value
+    .split(/[|,]/)
+    .map((item) => item.trim())
+    .filter((item) => /^\d+$/.test(item) && Number(item) > 0);
+
+  if (!ids.length) return '';
+  return Array.from(new Set(ids)).join(',');
+}
+
+function parseKeywordList(value: string | null): string {
+  if (!value) return '';
+  const keywords = value
+    .split(/[|,]/)
+    .map((item) => item.trim())
+    .filter((item) => /^[\w-]+$/.test(item));
+
+  if (!keywords.length) return '';
+  return Array.from(new Set(keywords)).join(',');
+}
+
 function parsePage(value: string | null): number {
   const parsed = Number(value || '1');
   if (!Number.isInteger(parsed) || parsed < 1) return 1;
@@ -78,6 +116,23 @@ function parsePage(value: string | null): number {
 
 function parseMedia(value: string | null): 'movie' | 'tv' {
   return value === 'tv' ? 'tv' : 'movie';
+}
+
+function parseSortBy(
+  value: string | null,
+  mediaType: 'movie' | 'tv'
+): string {
+  const normalized = normalizeText(value || '');
+  if (!normalized) return 'popularity.desc';
+
+  if (mediaType === 'movie' && MOVIE_SORT_BY_ALLOWLIST.has(normalized)) {
+    return normalized;
+  }
+  if (mediaType === 'tv' && TV_SORT_BY_ALLOWLIST.has(normalized)) {
+    return normalized;
+  }
+
+  return 'popularity.desc';
 }
 
 async function resolveKeywordIds(
@@ -122,11 +177,12 @@ function buildDiscoverParams(
   searchParams: URLSearchParams,
   keywordIds: string
 ): URLSearchParams {
+  const sortBy = parseSortBy(searchParams.get('sort_by'), mediaType);
   const params = new URLSearchParams({
     api_key: apiKey,
     page: String(parsePage(searchParams.get('page'))),
     language: 'zh-CN',
-    sort_by: 'popularity.desc',
+    sort_by: sortBy,
     include_adult: searchParams.get('include_adult') === 'true' ? 'true' : 'false',
   });
 
@@ -140,16 +196,32 @@ function buildDiscoverParams(
   const minRating = parsePositiveNumber(searchParams.get('vote_average_gte'));
   const maxRating = parsePositiveNumber(searchParams.get('vote_average_lte'));
   const minVotes = parsePositiveNumber(searchParams.get('vote_count_gte'));
+  const maxVotes = parsePositiveNumber(searchParams.get('vote_count_lte'));
   const runtimeFrom = parsePositiveNumber(searchParams.get('runtime_gte'));
   const runtimeTo = parsePositiveNumber(searchParams.get('runtime_lte'));
+  const withCompanies = parseIdList(searchParams.get('with_companies'));
+  const withPeople = parseIdList(searchParams.get('with_people'));
+  const withNetworks = parseIdList(searchParams.get('with_networks'));
+  const withoutGenres = parseIdList(searchParams.get('without_genres'));
+  const withoutKeywords = parseKeywordList(searchParams.get('without_keywords'));
+  const withType = parsePositiveNumber(searchParams.get('with_type'));
+  const withStatus = parsePositiveNumber(searchParams.get('with_status'));
 
   if (withGenres) params.set('with_genres', withGenres);
   if (withOriginCountry) params.set('with_origin_country', withOriginCountry);
   if (keywordIds) params.set('with_keywords', keywordIds);
+  if (withCompanies) params.set('with_companies', withCompanies);
+  if (withPeople) params.set('with_people', withPeople);
+  if (withNetworks) params.set('with_networks', withNetworks);
+  if (withoutGenres) params.set('without_genres', withoutGenres);
+  if (withoutKeywords) params.set('without_keywords', withoutKeywords);
+  if (withType) params.set('with_type', withType);
+  if (withStatus) params.set('with_status', withStatus);
   if (language) params.set('with_original_language', language);
   if (minRating) params.set('vote_average.gte', minRating);
   if (maxRating) params.set('vote_average.lte', maxRating);
   if (minVotes) params.set('vote_count.gte', minVotes);
+  if (maxVotes) params.set('vote_count.lte', maxVotes);
   if (runtimeFrom) params.set('with_runtime.gte', runtimeFrom);
   if (runtimeTo) params.set('with_runtime.lte', runtimeTo);
 
@@ -164,25 +236,35 @@ function buildDiscoverParams(
   return params;
 }
 
-function mapMovieList(list: TmdbDiscoverMovieItem[]): DoubanItem[] {
+interface TmdbDiscoverListItem extends DoubanItem {
+  backdrop?: string;
+}
+
+function mapMovieList(list: TmdbDiscoverMovieItem[]): TmdbDiscoverListItem[] {
   return list
     .filter((item) => Number.isInteger(item.id) && !!item.poster_path && !!item.title)
     .map((item) => ({
       id: String(item.id),
       title: normalizeText(item.title),
       poster: `${TMDB_IMAGE_BASE_URL}${item.poster_path}`,
+      backdrop: item.backdrop_path
+        ? `${TMDB_BACKDROP_IMAGE_BASE_URL}${item.backdrop_path}`
+        : undefined,
       rate: toRate(item.vote_average),
       year: toYear(item.release_date),
     }));
 }
 
-function mapTvList(list: TmdbDiscoverTvItem[]): DoubanItem[] {
+function mapTvList(list: TmdbDiscoverTvItem[]): TmdbDiscoverListItem[] {
   return list
     .filter((item) => Number.isInteger(item.id) && !!item.poster_path && !!item.name)
     .map((item) => ({
       id: String(item.id),
       title: normalizeText(item.name),
       poster: `${TMDB_IMAGE_BASE_URL}${item.poster_path}`,
+      backdrop: item.backdrop_path
+        ? `${TMDB_BACKDROP_IMAGE_BASE_URL}${item.backdrop_path}`
+        : undefined,
       rate: toRate(item.vote_average),
       year: toYear(item.first_air_date),
     }));
@@ -191,7 +273,7 @@ function mapTvList(list: TmdbDiscoverTvItem[]): DoubanItem[] {
 interface DiscoverApiResponse {
   code: number;
   message: string;
-  list: DoubanItem[];
+  list: TmdbDiscoverListItem[];
   page: number;
   total_pages: number;
   total_results: number;
