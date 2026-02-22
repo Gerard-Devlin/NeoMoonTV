@@ -138,7 +138,7 @@ export default function TmdbDetailModal({
             role='dialog'
             aria-modal='true'
             aria-label='Detail dialog'
-            className='relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
+            className='relative w-full max-w-4xl overflow-hidden rounded-[22px] border border-white/20 bg-slate-950 text-white shadow-2xl'
             initial={
               shouldReduceMotion
                 ? { opacity: 0.92, scale: 1 }
@@ -174,7 +174,9 @@ export default function TmdbDetailModal({
             <motion.div
               className='absolute inset-0'
               initial={shouldReduceMotion ? false : { opacity: 0, scale: 1.04 }}
-              animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
+              animate={
+                shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }
+              }
               transition={contentTransition}
             >
               {detail?.backdrop ? (
@@ -198,7 +200,7 @@ export default function TmdbDetailModal({
               {loading ? (
                 <div className='grid animate-pulse gap-6 md:grid-cols-[220px,1fr]'>
                   <div className='mx-auto w-40 md:mx-0 md:w-full'>
-                    <div className='aspect-[2/3] overflow-hidden rounded-lg border border-white/20 bg-white/10 shadow-xl' />
+                    <div className='aspect-[2/3] overflow-hidden rounded-2xl border border-white/20 bg-white/10 shadow-xl' />
                     {showPosterTitle ? (
                       <div className='mx-auto mt-2 h-3 w-4/5 rounded bg-white/25' />
                     ) : null}
@@ -251,7 +253,9 @@ export default function TmdbDetailModal({
 
               {!loading && error ? (
                 <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-center'>
-                  <p className='text-base font-medium text-white'>详情加载失败</p>
+                  <p className='text-base font-medium text-white'>
+                    详情加载失败
+                  </p>
                   <p className='text-sm text-white/70'>{error}</p>
                   {onRetry ? (
                     <button
@@ -271,7 +275,7 @@ export default function TmdbDetailModal({
               {!loading && !error && detail ? (
                 <div className='grid gap-6 md:grid-cols-[220px,1fr]'>
                   <div className='mx-auto w-40 md:mx-0 md:w-full'>
-                    <div className='relative aspect-[2/3] overflow-hidden rounded-lg border border-white/20 shadow-xl'>
+                    <div className='relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/20 shadow-xl'>
                       {detail.poster || detail.backdrop ? (
                         <Image
                           src={safeImageUrl(detail.poster || detail.backdrop)}
@@ -303,16 +307,24 @@ export default function TmdbDetailModal({
                         />
                       </div>
                     ) : (
-                      <h3 className='text-2xl font-bold sm:text-3xl'>{detail.title}</h3>
+                      <h3 className='text-2xl font-bold sm:text-3xl'>
+                        {detail.title}
+                      </h3>
                     )}
 
                     <div className='flex flex-wrap items-center gap-3 text-sm text-white/90'>
                       {detail.score ? (
                         <span className='inline-flex items-center gap-1'>
-                          <Star size={15} className='text-yellow-400' fill='currentColor' />
+                          <Star
+                            size={15}
+                            className='text-yellow-400'
+                            fill='currentColor'
+                          />
                           <span className='font-semibold'>{detail.score}</span>
                           {detail.voteCount > 0 ? (
-                            <span className='text-white/65'>({detail.voteCount})</span>
+                            <span className='text-white/65'>
+                              ({detail.voteCount})
+                            </span>
                           ) : null}
                         </span>
                       ) : null}
@@ -331,7 +343,9 @@ export default function TmdbDetailModal({
                         </span>
                       ) : null}
 
-                      {detail.mediaType === 'tv' && detail.seasons && detail.episodes ? (
+                      {detail.mediaType === 'tv' &&
+                      detail.seasons &&
+                      detail.episodes ? (
                         <span className='inline-flex items-center gap-1 text-white/80'>
                           <Users size={14} />
                           {detail.seasons} Seasons / {detail.episodes} Episodes
@@ -376,7 +390,9 @@ export default function TmdbDetailModal({
 
                     {detail.cast.length > 0 ? (
                       <div className='space-y-2'>
-                        <p className='text-sm font-semibold text-white/90'>主演</p>
+                        <p className='text-sm font-semibold text-white/90'>
+                          主演
+                        </p>
                         <div className='flex flex-wrap gap-2'>
                           {detail.cast.map((person) => (
                             <Link
