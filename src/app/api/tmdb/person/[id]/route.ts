@@ -19,6 +19,7 @@ interface TmdbCreditRaw {
   backdrop_path?: string | null;
   character?: string;
   job?: string;
+  department?: string;
   release_date?: string;
   first_air_date?: string;
   popularity?: number;
@@ -52,6 +53,7 @@ interface PersonCredit {
   year: string;
   releaseDate: string;
   role: string;
+  department: string;
   score: string;
   overview: string;
   popularity: number;
@@ -95,6 +97,13 @@ function toScore(value?: number): string {
   return value.toFixed(1);
 }
 
+function toTimestamp(value?: string): number {
+  const normalized = normalizeText(value);
+  if (!normalized) return 0;
+  const parsed = Date.parse(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 function mapCredit(raw: TmdbCreditRaw): PersonCredit | null {
   if (!Number.isInteger(raw.id) || !raw.id) return null;
   const mediaType = raw.media_type === 'movie' || raw.media_type === 'tv'
@@ -117,13 +126,14 @@ function mapCredit(raw: TmdbCreditRaw): PersonCredit | null {
     year: toYear(raw.release_date || raw.first_air_date),
     releaseDate: normalizeText(raw.release_date || raw.first_air_date),
     role: normalizeText(raw.character || raw.job),
+    department: normalizeText(raw.department),
     score: toScore(raw.vote_average),
     overview: normalizeText(raw.overview),
     popularity: raw.popularity || 0,
   };
 }
 
-function dedupeAndSortCredits(raw: TmdbPersonRaw): PersonCredit[] {
+function mergeAndSortCredits(raw: TmdbPersonRaw): PersonCredit[] {
   const cast = (raw.combined_credits?.cast || [])
     .map((item) => mapCredit(item))
     .filter((item): item is PersonCredit => Boolean(item));
@@ -134,15 +144,35 @@ function dedupeAndSortCredits(raw: TmdbPersonRaw): PersonCredit[] {
 
   const mergedMap = new Map<string, PersonCredit>();
   for (const item of [...cast, ...crew]) {
-    const key = `${item.mediaType}-${item.id}`;
+    const roleKey = normalizeText(item.role).toLowerCase() || '-';
+    const key = `${item.mediaType}-${item.id}-${roleKey}`;
     const existing = mergedMap.get(key);
-    if (!existing || item.popularity > existing.popularity) {
+    if (!existing) {
+      mergedMap.set(key, item);
+      continue;
+    }
+
+    const popularityDiff = item.popularity - existing.popularity;
+    if (popularityDiff > 0) {
+      mergedMap.set(key, item);
+      continue;
+    }
+    if (
+      popularityDiff === 0 &&
+      toTimestamp(item.releaseDate) > toTimestamp(existing.releaseDate)
+    ) {
       mergedMap.set(key, item);
     }
   }
 
   return Array.from(mergedMap.values())
-    .sort((a, b) => b.popularity - a.popularity);
+    .sort((a, b) => {
+      const popularityDiff = b.popularity - a.popularity;
+      if (popularityDiff !== 0) return popularityDiff;
+      const dateDiff = toTimestamp(b.releaseDate) - toTimestamp(a.releaseDate);
+      if (dateDiff !== 0) return dateDiff;
+      return b.id - a.id;
+    });
 }
 
 export async function GET(
@@ -213,7 +243,7 @@ export async function GET(
       popularity: raw.popularity || 0,
       homepage: normalizeText(raw.homepage),
       imdbId: normalizeText(raw.imdb_id),
-      credits: dedupeAndSortCredits(raw),
+      credits: mergeAndSortCredits(raw),
     };
 
     return NextResponse.json(payload, {
