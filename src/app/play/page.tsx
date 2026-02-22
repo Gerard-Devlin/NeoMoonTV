@@ -4,6 +4,7 @@
 
 import Artplayer from 'artplayer';
 import artplayerPluginDanmuku from 'artplayer-plugin-danmuku';
+import { motion } from 'framer-motion';
 import Hls from 'hls.js';
 import {
   AlertTriangle,
@@ -13,7 +14,6 @@ import {
   ChevronRight,
   Clock3,
   Film,
-  Heart,
   RefreshCw,
   Search,
   Sparkles,
@@ -167,6 +167,7 @@ function PlayPageClient() {
 
   // 收藏状态
   const [favorited, setFavorited] = useState(false);
+  const [favoriteBurstKey, setFavoriteBurstKey] = useState(0);
 
   // 跳过片头片尾配置
   const [skipConfig, setSkipConfig] = useState<{
@@ -2454,6 +2455,7 @@ function PlayPageClient() {
           search_title: searchTitle,
         });
         setFavorited(true);
+        setFavoriteBurstKey((prev) => prev + 1);
       }
     } catch (err) {
       console.error('切换收藏失败:', err);
@@ -4175,11 +4177,13 @@ function PlayPageClient() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleToggleFavorite();
+                      void handleToggleFavorite();
                     }}
-                    className='ml-3 flex-shrink-0 hover:opacity-80 transition-opacity'
+                    className='ml-3 inline-flex flex-shrink-0 items-center justify-center text-gray-700 transition-transform duration-200 hover:scale-110 active:scale-95 dark:text-gray-200'
+                    aria-label={favorited ? '取消收藏' : '添加收藏'}
+                    title={favorited ? '取消收藏' : '添加收藏'}
                   >
-                    <FavoriteIcon filled={favorited} />
+                    <FavoriteIcon filled={favorited} burstKey={favoriteBurstKey} />
                   </button>
                 </div>
 
@@ -4533,28 +4537,205 @@ function PlayPageClient() {
   );
 }
 
-// FavoriteIcon 组件
-const FavoriteIcon = ({ filled }: { filled: boolean }) => {
-  if (filled) {
-    return (
-      <svg
-        className='h-7 w-7'
-        viewBox='0 0 24 24'
-        xmlns='http://www.w3.org/2000/svg'
-      >
-        <path
-          d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
-          fill='#ef4444' /* Tailwind red-500 */
-          stroke='#ef4444'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-      </svg>
-    );
-  }
+const CIRCLE_RADIUS = 20;
+const BURST_RADIUS = 32;
+const START_RADIUS = 4;
+const PATH_SCALE_FACTOR = 0.8;
+const BURST_COLOR_PAIRS = [
+  { from: '#9EC9F5', to: '#9ED8C6' },
+  { from: '#91D3F7', to: '#9AE4CF' },
+  { from: '#DC93CF', to: '#E3D36B' },
+  { from: '#CF8EEF', to: '#CBEB98' },
+  { from: '#87E9C6', to: '#1FCC93' },
+  { from: '#A7ECD0', to: '#9AE4CF' },
+  { from: '#87E9C6', to: '#A635D9' },
+  { from: '#D58EB3', to: '#E0B6F5' },
+  { from: '#F48BA2', to: '#CF8EEF' },
+  { from: '#91D3F7', to: '#A635D9' },
+  { from: '#CF8EEF', to: '#CBEB98' },
+  { from: '#87E9C6', to: '#A635D9' },
+  { from: '#9EC9F5', to: '#9ED8C6' },
+  { from: '#91D3F7', to: '#9AE4CF' },
+];
+
+const CircleAnimation = () => {
   return (
-    <Heart className='h-7 w-7 stroke-[1] text-gray-600 dark:text-gray-300' />
+    <svg
+      className='pointer-events-none absolute inset-0'
+      style={{
+        width: CIRCLE_RADIUS * 2,
+        height: CIRCLE_RADIUS * 2,
+      }}
+    >
+      <motion.circle
+        cx={CIRCLE_RADIUS}
+        cy={CIRCLE_RADIUS}
+        fill='none'
+        initial={{
+          r: 2,
+          stroke: '#E5214A',
+          strokeWidth: 12,
+          opacity: 0.9,
+        }}
+        animate={{
+          r: CIRCLE_RADIUS - 2,
+          stroke: '#CC8EF5',
+          strokeWidth: 0,
+          opacity: 1,
+        }}
+        transition={{
+          duration: 0.4,
+          ease: [0.33, 1, 0.68, 1],
+        }}
+      />
+    </svg>
+  );
+};
+
+const Particle = ({
+  fromColor,
+  toColor,
+  index,
+  totalParticles,
+}: {
+  fromColor: string;
+  toColor: string;
+  index: number;
+  totalParticles: number;
+}) => {
+  const angle = (index / totalParticles) * 360 + 45;
+  const radians = (angle * Math.PI) / 180;
+  const randomFactor = 0.85 + Math.random() * 0.3;
+  const burstDistance = BURST_RADIUS * randomFactor;
+  const duration = 500 + Math.random() * 200;
+  const degreeShift = (13 * Math.PI) / 180;
+
+  return (
+    <motion.span
+      className='pointer-events-none absolute h-1.5 w-1.5 rounded-full'
+      style={{
+        left: '50%',
+        top: '50%',
+        marginLeft: '-3px',
+        marginTop: '-3px',
+        backgroundColor: fromColor,
+        opacity: 0,
+      }}
+      initial={{
+        opacity: 0,
+        scale: 1,
+        x: Math.cos(radians) * START_RADIUS * PATH_SCALE_FACTOR,
+        y: Math.sin(radians) * START_RADIUS * PATH_SCALE_FACTOR,
+        backgroundColor: fromColor,
+      }}
+      animate={{
+        opacity: [0, 1, 1, 0],
+        x: Math.cos(radians + degreeShift) * burstDistance * PATH_SCALE_FACTOR,
+        y: Math.sin(radians + degreeShift) * burstDistance * PATH_SCALE_FACTOR,
+        scale: 0,
+        backgroundColor: toColor,
+      }}
+      transition={{
+        opacity: {
+          times: [0, 0.01, 0.99, 1],
+          duration: duration / 1000,
+          delay: 0.4,
+        },
+        x: {
+          duration: duration / 1000,
+          ease: [0.23, 1, 0.32, 1],
+          delay: 0.3,
+        },
+        y: {
+          duration: duration / 1000,
+          ease: [0.23, 1, 0.32, 1],
+          delay: 0.3,
+        },
+        scale: {
+          duration: duration / 1000,
+          ease: [0.55, 0.085, 0.68, 0.53],
+          delay: 0.3,
+        },
+        backgroundColor: {
+          duration: duration / 1000,
+          delay: 0.3,
+        },
+      }}
+    />
+  );
+};
+
+const BurstAnimation = ({ burstKey }: { burstKey: number }) => {
+  return (
+    <div className='pointer-events-none absolute inset-0'>
+      {BURST_COLOR_PAIRS.map((colors, index) => (
+        <Particle
+          key={`favorite-burst-${burstKey}-${index}`}
+          fromColor={colors.from}
+          toColor={colors.to}
+          index={index}
+          totalParticles={BURST_COLOR_PAIRS.length}
+        />
+      ))}
+    </div>
+  );
+};
+
+// FavoriteIcon 组件
+const FavoriteIcon = ({
+  filled,
+  burstKey,
+}: {
+  filled: boolean;
+  burstKey: number;
+}) => {
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (!burstKey) return;
+    setIsAnimating(true);
+  }, [burstKey]);
+
+  return (
+    <span className='relative inline-flex h-7 w-7 items-center justify-center'>
+      {isAnimating ? (
+        <span className='pointer-events-none absolute -left-1.5 -top-1.5 h-10 w-10'>
+          <CircleAnimation />
+          <BurstAnimation burstKey={burstKey} />
+        </span>
+      ) : null}
+      {isAnimating ? (
+        <motion.svg
+          key={`favorite-heart-pop-${burstKey}`}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{
+            type: 'spring',
+            stiffness: 300,
+            damping: 10,
+            delay: 0.3,
+          }}
+          onAnimationComplete={() => setIsAnimating(false)}
+          className='relative z-[1] h-7 w-7 text-red-500'
+          viewBox='0 0 24 24'
+          stroke='currentColor'
+          fill='currentColor'
+          aria-hidden='true'
+        >
+          <path d='m18.199 2.04c-2.606-.284-4.262.961-6.199 3.008-2.045-2.047-3.593-3.292-6.199-3.008-3.544.388-6.321 4.43-5.718 7.96.966 5.659 5.944 9 11.917 12 5.973-3 10.951-6.341 11.917-12 .603-3.53-2.174-7.572-5.718-7.96z' />
+        </motion.svg>
+      ) : (
+        <svg
+          className={filled ? 'h-7 w-7 text-red-500' : 'h-7 w-7 text-gray-600 dark:text-gray-300'}
+          viewBox='0 0 24 24'
+          stroke='currentColor'
+          fill='currentColor'
+          aria-hidden='true'
+        >
+          <path d='m18.199 2.04c-2.606-.284-4.262.961-6.199 3.008-2.045-2.047-3.593-3.292-6.199-3.008-3.544.388-6.321 4.43-5.718 7.96.966 5.659 5.944 9 11.917 12 5.973-3 10.951-6.341 11.917-12 .603-3.53-2.174-7.572-5.718-7.96z' />
+        </svg>
+      )}
+    </span>
   );
 };
 
