@@ -236,6 +236,16 @@ function SearchPageClient() {
     suggestionOpen &&
     trimmedSearchQuery.length > 0 &&
     (suggestionLoading || hasSuggestionSearched);
+  const focusSearchField = useCallback((selectAll = true) => {
+    const input = document.getElementById(
+      'searchInput'
+    ) as HTMLInputElement | null;
+    if (!input) return;
+    input.focus();
+    if (selectAll) {
+      input.select();
+    }
+  }, []);
 
   // 获取默认聚合设置：只读取用户本地设置，默认值为 true
   const getDefaultAggregate = () => {
@@ -263,7 +273,9 @@ function SearchPageClient() {
   );
 
   useEffect(() => {
-    !searchParams.get('q') && document.getElementById('searchInput')?.focus();
+    if (!searchParams.get('q')) {
+      focusSearchField(false);
+    }
 
     getSearchHistory().then(setSearchHistory);
 
@@ -277,7 +289,7 @@ function SearchPageClient() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [focusSearchField]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -681,10 +693,7 @@ function SearchPageClient() {
     setLegacySearchResults([]);
     setShowResults(false);
     router.replace('/search');
-    const input = document.getElementById(
-      'searchInput'
-    ) as HTMLInputElement | null;
-    input?.focus();
+    focusSearchField(false);
   };
 
   return (

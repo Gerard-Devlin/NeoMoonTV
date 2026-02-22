@@ -1078,7 +1078,7 @@ export default function VideoCard({
   const config = useMemo(() => {
     const configs = {
       playrecord: {
-        showSourceName: true,
+        showSourceName: false,
         showProgress: true,
         showHeart: true,
         showCheckCircle: true,
@@ -1086,7 +1086,7 @@ export default function VideoCard({
         showRating: false,
       },
       favorite: {
-        showSourceName: true,
+        showSourceName: false,
         showProgress: false,
         showHeart: true,
         showCheckCircle: false,

@@ -122,6 +122,13 @@ export default function DesktopTopSearch() {
   const shouldShowDropdown =
     open && trimmedQuery.length > 0 && (isLoading || hasSearched);
   const isSearchActive = open || trimmedQuery.length > 0;
+  const focusSearchInput = useCallback(() => {
+    setOpen(true);
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, []);
 
   useEffect(() => {
     if (!trimmedQuery) {
@@ -211,6 +218,21 @@ export default function DesktopTopSearch() {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [seasonPickerOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.altKey || event.shiftKey) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() !== 'k') return;
+      if (detailOpen || seasonPickerOpen) return;
+
+      event.preventDefault();
+      focusSearchInput();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [detailOpen, focusSearchInput, seasonPickerOpen]);
 
   const goSearchPage = (keyword: string) => {
     const trimmed = keyword.trim();
@@ -444,7 +466,17 @@ export default function DesktopTopSearch() {
           >
             <X className='h-4 w-4' />
           </button>
-        ) : null}
+        ) : (
+          <button
+            type='button'
+            onClick={focusSearchInput}
+            aria-label='focus search'
+            className='inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border border-white/15 bg-black/20 px-1.5 text-[10px] font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white'
+          >
+            <span className='text-[9px] leading-none'>⌘</span>
+            <span className='leading-none'>K</span>
+          </button>
+        )}
       </form>
 
       {shouldShowDropdown && (

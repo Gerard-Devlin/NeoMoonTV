@@ -1048,7 +1048,7 @@ function MyPageClient() {
 
               {loadingPlayRecords ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-play-skeleton-${index}`}
@@ -1059,7 +1059,7 @@ function MyPageClient() {
                 </div>
               ) : filteredPlayRecords.length > 0 ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {filteredPlayRecords.map((record) => {
                       const { source, id } = parseStorageKey(record.key);
                       const isSelected = selectedPlayKeys.has(record.key);
@@ -1186,7 +1186,7 @@ function MyPageClient() {
 
               {loadingFavorites ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-favorite-skeleton-${index}`}
@@ -1197,7 +1197,7 @@ function MyPageClient() {
                 </div>
               ) : filteredFavoriteItems.length > 0 ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
                     {filteredFavoriteItems.map((item) => (
                       <div key={item.key} className='relative'>
                         <VideoCard
