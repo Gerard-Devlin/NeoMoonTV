@@ -2977,7 +2977,8 @@ function PlayPageClient() {
         theme: '#557efc',
         lang: 'zh-cn',
         hotkey: false,
-        fastForward: true,
+        // Use custom long-press boost logic below (2x on hold, restore on release).
+        fastForward: false,
         autoOrientation: true,
         lock: true,
         moreVideoAttr: {
