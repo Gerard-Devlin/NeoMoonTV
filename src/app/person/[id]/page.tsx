@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -223,7 +223,7 @@ export default function PersonDetailPage() {
                               </div>
                             </div>
                             <div className='pl-5'>
-                              <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                              <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
                                 {group.items.map((item) => (
                                   <div
                                     key={`person-credit-${item.mediaType}-${item.id}`}
@@ -248,7 +248,7 @@ export default function PersonDetailPage() {
                       </div>
                     ) : (
                       <div
-                        className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'
+                        className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'
                       >
                         {creditSearchResults.map((item) => (
                           <div key={`person-credit-${item.type_name}-${item.id}`}>

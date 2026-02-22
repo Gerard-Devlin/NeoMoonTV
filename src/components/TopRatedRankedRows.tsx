@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, Play, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,6 +18,7 @@ import TmdbDetailModal, { TmdbDetailModalData } from '@/components/TmdbDetailMod
 type TmdbMediaType = 'movie' | 'tv';
 type LogoLanguagePreference = 'zh' | 'en';
 type LogoAspectType = 'ultraWide' | 'wide' | 'standard' | 'squareish' | 'tall';
+const TOP_RATED_DISPLAY_COUNT = 9;
 
 interface RankedDiscoverItem {
   id: string;
@@ -127,9 +128,9 @@ function getRankedLogoContainerClass(aspectRatio?: number): string {
 }
 
 function getLogoLanguagePreferenceForMediaType(
-  mediaType: TmdbMediaType
+  _mediaType: TmdbMediaType
 ): LogoLanguagePreference {
-  return mediaType === 'movie' ? 'en' : 'zh';
+  return 'en';
 }
 
 async function fetchDiscoverItems(
@@ -143,7 +144,7 @@ async function fetchDiscoverItems(
   if (!response.ok || payload.code !== 200) {
     throw new Error(payload.message || 'Failed to fetch ranked content');
   }
-  return payload.list.slice(0, 3);
+  return payload.list.slice(0, TOP_RATED_DISPLAY_COUNT);
 }
 
 async function fetchTmdbDetailById(
@@ -263,7 +264,7 @@ function RankedCard({
 function LoadingSkeleton() {
   return (
     <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-      {Array.from({ length: 3 }).map((_, index) => (
+      {Array.from({ length: TOP_RATED_DISPLAY_COUNT }).map((_, index) => (
         <div
           key={`ranked-loading-${index}`}
           className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80'
@@ -281,6 +282,38 @@ function RankedSection({
   loading,
   onOpenDetail,
 }: RankedSectionProps) {
+  const desktopScrollRef = useRef<HTMLDivElement | null>(null);
+  const [showLeftScroll, setShowLeftScroll] = useState(false);
+  const [showRightScroll, setShowRightScroll] = useState(false);
+  const [desktopHovered, setDesktopHovered] = useState(false);
+
+  const checkDesktopScroll = useCallback(() => {
+    const node = desktopScrollRef.current;
+    if (!node) return;
+    const { scrollWidth, clientWidth, scrollLeft } = node;
+    const threshold = 1;
+    setShowRightScroll(scrollWidth - (scrollLeft + clientWidth) > threshold);
+    setShowLeftScroll(scrollLeft > threshold);
+  }, []);
+
+  useEffect(() => {
+    checkDesktopScroll();
+    window.addEventListener('resize', checkDesktopScroll);
+    return () => {
+      window.removeEventListener('resize', checkDesktopScroll);
+    };
+  }, [checkDesktopScroll, items, loading]);
+
+  const scrollDesktopBy = useCallback((direction: 'left' | 'right') => {
+    const node = desktopScrollRef.current;
+    if (!node) return;
+    const amount = Math.max(node.clientWidth * 0.9, 420);
+    node.scrollBy({
+      left: direction === 'right' ? amount : -amount,
+      behavior: 'smooth',
+    });
+  }, []);
+
   if (!loading && items.length === 0) {
     return null;
   }
@@ -302,21 +335,96 @@ function RankedSection({
         <LoadingSkeleton />
       ) : (
         <>
-          <div className='hidden grid-cols-3 gap-5 md:grid'>
-            {items.slice(0, 3).map((item, index) => (
-              <RankedCard
-                key={`${mediaType}-desktop-${item.id}-${index}`}
-                item={item}
-                rank={index + 1}
-                mediaType={mediaType}
-                onOpenDetail={onOpenDetail}
-              />
-            ))}
+          <div
+            className='relative hidden md:block'
+            onMouseEnter={() => {
+              setDesktopHovered(true);
+              checkDesktopScroll();
+            }}
+            onMouseLeave={() => setDesktopHovered(false)}
+          >
+            <div
+              ref={desktopScrollRef}
+              className='-mx-1 overflow-x-auto pb-1 scrollbar-hide'
+              onScroll={checkDesktopScroll}
+            >
+              <div className='flex min-w-max gap-5 px-1'>
+                {items.slice(0, TOP_RATED_DISPLAY_COUNT).map((item, index) => (
+                  <div
+                    key={`${mediaType}-desktop-${item.id}-${index}`}
+                    className='w-[clamp(320px,31vw,560px)] flex-shrink-0'
+                  >
+                    <RankedCard
+                      item={item}
+                      rank={index + 1}
+                      mediaType={mediaType}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {showLeftScroll ? (
+              <div
+                className={`absolute left-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                  desktopHovered ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{ background: 'transparent', pointerEvents: 'none' }}
+              >
+                <div
+                  className='absolute inset-0 flex items-center justify-center'
+                  style={{
+                    top: '40%',
+                    bottom: '60%',
+                    left: '-4.5rem',
+                    pointerEvents: 'auto',
+                  }}
+                >
+                  <button
+                    type='button'
+                    onClick={() => scrollDesktopBy('left')}
+                    className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                    aria-label='向左滚动'
+                  >
+                    <ChevronLeft className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {showRightScroll ? (
+              <div
+                className={`absolute right-0 top-0 bottom-0 z-[600] hidden w-16 items-center justify-center transition-opacity duration-200 md:flex ${
+                  desktopHovered ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{ background: 'transparent', pointerEvents: 'none' }}
+              >
+                <div
+                  className='absolute inset-0 flex items-center justify-center'
+                  style={{
+                    top: '40%',
+                    bottom: '60%',
+                    right: '-4.5rem',
+                    pointerEvents: 'auto',
+                  }}
+                >
+                  <button
+                    type='button'
+                    onClick={() => scrollDesktopBy('right')}
+                    className='flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-lg transition-transform hover:scale-105 hover:bg-white dark:border-gray-600 dark:bg-gray-800/90 dark:hover:bg-gray-700'
+                    aria-label='向右滚动'
+                  >
+                    <ChevronRight className='h-6 w-6 text-gray-600 dark:text-gray-300' />
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className='-mx-2 overflow-x-auto pb-1 md:hidden'>
             <div className='flex min-w-max gap-3 px-2'>
-              {items.slice(0, 3).map((item, index) => (
+              {items.slice(0, TOP_RATED_DISPLAY_COUNT).map((item, index) => (
                 <div
                   key={`${mediaType}-mobile-${item.id}-${index}`}
                   className='w-[86vw] max-w-[560px] flex-shrink-0'

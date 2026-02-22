@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any, @next/next/no-img-element */
+﻿/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 'use client';
 
 import { ChevronDown, ChevronRight, Search, Star, X } from 'lucide-react';
@@ -886,7 +886,7 @@ function SearchPageClient() {
                   </div>
                   <div
                     key={`search-results-${viewMode}`}
-                    className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
+                    className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
                   >
                     {viewMode === 'agg'
                       ? aggregatedResults.map(([mapKey, group]) => {
@@ -962,7 +962,7 @@ function SearchPageClient() {
                       </button>
 
                       {legacyExpanded && (
-                        <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
+                        <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-y-8 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
                           {viewMode === 'agg'
                             ? aggregatedLegacyResults.map(([mapKey, group]) => (
                                 <div

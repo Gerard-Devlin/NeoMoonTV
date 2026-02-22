@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -121,7 +121,7 @@ export default function CuratedPageClient() {
 
   if (!config) {
     return (
-      <PageLayout showDesktopTopSearch>
+      <PageLayout activePath='/curated' showDesktopTopSearch>
         <div className='px-2 sm:px-10 py-10'>
           <div className='mx-auto w-full max-w-[95%] text-center text-zinc-500 dark:text-zinc-400'>
             {'分类不存在'}
@@ -132,7 +132,7 @@ export default function CuratedPageClient() {
   }
 
   return (
-    <PageLayout showDesktopTopSearch>
+    <PageLayout activePath='/curated' showDesktopTopSearch>
       <div className='px-2 sm:px-10 pb-8'>
         <div className='mx-auto w-full max-w-[95%] pt-6'>
           <div className='mb-6'>
@@ -149,7 +149,7 @@ export default function CuratedPageClient() {
           </div>
 
           {loading ? (
-            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-10 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-16 sm:px-2'>
+            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-8 sm:px-2'>
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={`curated-loading-${index}`} className='w-full'>
                   <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
@@ -169,7 +169,7 @@ export default function CuratedPageClient() {
 
           {!loading && !error ? (
             <>
-              <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-12 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20 sm:px-2'>
+              <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-8 sm:px-2'>
                 {items.map((item) => (
                   <div key={`${item.id}-${item.title}`} className='w-full'>
                     <VideoCard

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { BarChart3, Heart, History, Search, X } from 'lucide-react';
 import {
@@ -296,14 +296,21 @@ function normalizePosterUrl(url: string): string {
   return trimmed;
 }
 
-function getWatchFormat(record: Pick<PlayRecord, 'index' | 'total_episodes' | 'title' | 'search_title'>): 'movie' | 'tv' {
+function getWatchFormat(
+  record: Pick<
+    PlayRecord,
+    'index' | 'total_episodes' | 'title' | 'search_title'
+  >
+): 'movie' | 'tv' {
   const totalEpisodes = Number(record.total_episodes || 0);
   if (Number.isFinite(totalEpisodes) && totalEpisodes > 1) return 'tv';
 
   const watchedIndex = Number(record.index || 0);
   if (Number.isFinite(watchedIndex) && watchedIndex > 1) return 'tv';
 
-  const titleText = `${record.title || ''} ${record.search_title || ''}`.toLowerCase();
+  const titleText = `${record.title || ''} ${
+    record.search_title || ''
+  }`.toLowerCase();
   if (
     /(第\s*\d+\s*集|全\s*\d+\s*集|更新至\s*\d+\s*集|s\s*\d{1,2}\s*e\s*\d{1,3}|ep?\s*\d{1,3})/i.test(
       titleText
@@ -956,7 +963,7 @@ function MyPageClient() {
 
   return (
     <PageLayout activePath='/my'>
-      <div className='px-2 pt-14 pb-5 sm:px-10 sm:pt-16 sm:pb-8 md:pt-20'>
+      <div className='px-2 pt-6 pb-5 sm:px-10 sm:pt-8 sm:pb-8 md:pt-8'>
         <div className='mx-auto w-full max-w-[95%] space-y-8'>
           <div className='flex justify-center'>
             <CapsuleSwitch
@@ -1041,7 +1048,7 @@ function MyPageClient() {
 
               {loadingPlayRecords ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-play-skeleton-${index}`}
@@ -1052,7 +1059,7 @@ function MyPageClient() {
                 </div>
               ) : filteredPlayRecords.length > 0 ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
                     {filteredPlayRecords.map((record) => {
                       const { source, id } = parseStorageKey(record.key);
                       const isSelected = selectedPlayKeys.has(record.key);
@@ -1179,7 +1186,7 @@ function MyPageClient() {
 
               {loadingFavorites ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-favorite-skeleton-${index}`}
@@ -1190,7 +1197,7 @@ function MyPageClient() {
                 </div>
               ) : filteredFavoriteItems.length > 0 ? (
                 <div className='px-4 sm:px-6'>
-                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-8'>
                     {filteredFavoriteItems.map((item) => (
                       <div key={item.key} className='relative'>
                         <VideoCard
@@ -1289,7 +1296,10 @@ function MyPageClient() {
                           <Tooltip
                             cursor={false}
                             allowEscapeViewBox={{ x: true, y: true }}
-                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'none' }}
+                            wrapperStyle={{
+                              zIndex: 9999,
+                              pointerEvents: 'none',
+                            }}
                             content={({ active, payload }) => {
                               if (!active || !payload?.length) return null;
                               const genre =
@@ -1342,9 +1352,7 @@ function MyPageClient() {
                                             src={processImageUrl(
                                               normalizedPoster
                                             )}
-                                            data-original-src={
-                                              normalizedPoster
-                                            }
+                                            data-original-src={normalizedPoster}
                                             alt={`${genre} 海报 ${index + 1}`}
                                             className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
                                             referrerPolicy='no-referrer'
@@ -1405,91 +1413,99 @@ function MyPageClient() {
                     ) : watchFormatStats.total > 0 ? (
                       <div className='relative z-20 h-full w-full overflow-visible'>
                         <ResponsiveContainer width='100%' height='100%'>
-                        <RadialBarChart
-                          data={watchFormatChartData}
-                          startAngle={180}
-                          endAngle={0}
-                          innerRadius={80}
-                          outerRadius={130}
-                          cy='56%'
-                        >
-                          <PolarAngleAxisNumberCompat
-                            type='number'
-                            domain={[0, Math.max(watchFormatStats.total, 1)]}
-                            tick={false}
-                          />
-                          <PolarRadiusAxis
-                            tick={false}
-                            tickLine={false}
-                            axisLine={false}
+                          <RadialBarChart
+                            data={watchFormatChartData}
+                            startAngle={180}
+                            endAngle={0}
+                            innerRadius={80}
+                            outerRadius={130}
+                            cy='56%'
                           >
-                            <Label content={() => null} />
-                          </PolarRadiusAxis>
-                          <Tooltip
-                            cursor={false}
-                            content={({ active, payload }) => {
-                              if (!active || !payload?.length) return null;
-                              const fallbackKey = payload.find((entry) => {
-                                const key = String(entry?.dataKey || '');
-                                return key === 'tv' || key === 'movie';
-                              })?.dataKey;
+                            <PolarAngleAxisNumberCompat
+                              type='number'
+                              domain={[0, Math.max(watchFormatStats.total, 1)]}
+                              tick={false}
+                            />
+                            <PolarRadiusAxis
+                              tick={false}
+                              tickLine={false}
+                              axisLine={false}
+                            >
+                              <Label content={() => null} />
+                            </PolarRadiusAxis>
+                            <Tooltip
+                              cursor={false}
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null;
+                                const fallbackKey = payload.find((entry) => {
+                                  const key = String(entry?.dataKey || '');
+                                  return key === 'tv' || key === 'movie';
+                                })?.dataKey;
 
-                              const key =
-                                watchFormatHoverKey ||
-                                (String(fallbackKey) as 'movie' | 'tv');
-                              if (key !== 'movie' && key !== 'tv') return null;
+                                const key =
+                                  watchFormatHoverKey ||
+                                  (String(fallbackKey) as 'movie' | 'tv');
+                                if (key !== 'movie' && key !== 'tv')
+                                  return null;
 
-                              const value = Number(
-                                payload.find(
-                                  (entry) => String(entry?.dataKey || '') === key
-                                )?.value || 0
-                              );
-                              const total = watchFormatStats.total > 0 ? watchFormatStats.total : 1;
-                              const percent = (value / total) * 100;
+                                const value = Number(
+                                  payload.find(
+                                    (entry) =>
+                                      String(entry?.dataKey || '') === key
+                                  )?.value || 0
+                                );
+                                const total =
+                                  watchFormatStats.total > 0
+                                    ? watchFormatStats.total
+                                    : 1;
+                                const percent = (value / total) * 100;
 
-                              return (
-                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
-                                  <p className='mb-1 text-[11px] text-white/70'>
-                                    内容形态
-                                  </p>
-                                  <div className='flex items-center gap-2'>
-                                    <span
-                                      className='inline-block h-2 w-2 rounded-full'
-                                      style={{
-                                        backgroundColor: WATCH_FORMAT_COLORS[key],
-                                      }}
-                                    />
-                                    <span className='text-white/85'>
-                                      {WATCH_FORMAT_LABELS[key]}
-                                    </span>
-                                    <span className='font-semibold text-white'>
-                                      {value} 条 · {percent.toFixed(1)}%
-                                    </span>
+                                return (
+                                  <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                    <p className='mb-1 text-[11px] text-white/70'>
+                                      内容形态
+                                    </p>
+                                    <div className='flex items-center gap-2'>
+                                      <span
+                                        className='inline-block h-2 w-2 rounded-full'
+                                        style={{
+                                          backgroundColor:
+                                            WATCH_FORMAT_COLORS[key],
+                                        }}
+                                      />
+                                      <span className='text-white/85'>
+                                        {WATCH_FORMAT_LABELS[key]}
+                                      </span>
+                                      <span className='font-semibold text-white'>
+                                        {value} 条 · {percent.toFixed(1)}%
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <RadialBar
-                            dataKey='tv'
-                            stackId='watch-format'
-                            cornerRadius={5}
-                            fill={WATCH_FORMAT_COLORS.tv}
-                            onMouseEnter={() => setWatchFormatHoverKey('tv')}
-                            onMouseLeave={() => setWatchFormatHoverKey(null)}
-                            className='stroke-transparent stroke-2'
-                          />
-                          <RadialBar
-                            dataKey='movie'
-                            stackId='watch-format'
-                            cornerRadius={5}
-                            fill={WATCH_FORMAT_COLORS.movie}
-                            onMouseEnter={() => setWatchFormatHoverKey('movie')}
-                            onMouseLeave={() => setWatchFormatHoverKey(null)}
-                            className='stroke-transparent stroke-2'
-                          />
-                        </RadialBarChart>
-                      </ResponsiveContainer>
+                                );
+                              }}
+                            />
+                            <RadialBar
+                              dataKey='tv'
+                              stackId='watch-format'
+                              cornerRadius={5}
+                              fill={WATCH_FORMAT_COLORS.tv}
+                              onMouseEnter={() => setWatchFormatHoverKey('tv')}
+                              onMouseLeave={() => setWatchFormatHoverKey(null)}
+                              className='stroke-transparent stroke-2'
+                            />
+                            <RadialBar
+                              dataKey='movie'
+                              stackId='watch-format'
+                              cornerRadius={5}
+                              fill={WATCH_FORMAT_COLORS.movie}
+                              onMouseEnter={() =>
+                                setWatchFormatHoverKey('movie')
+                              }
+                              onMouseLeave={() => setWatchFormatHoverKey(null)}
+                              className='stroke-transparent stroke-2'
+                            />
+                          </RadialBarChart>
+                        </ResponsiveContainer>
                       </div>
                     ) : (
                       <div className='flex h-full items-center justify-center text-sm text-gray-400'>
@@ -1583,10 +1599,13 @@ function MyPageClient() {
                         cursor={{ fill: 'rgba(96,165,250,0.08)' }}
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null;
-                          const row =
-                            payload[0]?.payload as AnalysisDataPoint | undefined;
+                          const row = payload[0]?.payload as
+                            | AnalysisDataPoint
+                            | undefined;
                           const range =
-                            row && typeof row.range === 'string' ? row.range : '';
+                            row && typeof row.range === 'string'
+                              ? row.range
+                              : '';
                           const value = payload[0]?.value;
                           const numericValue =
                             typeof value === 'number'
