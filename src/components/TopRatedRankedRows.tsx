@@ -309,14 +309,35 @@ function RankedCard({
 
 function LoadingSkeleton() {
   return (
-    <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-      {Array.from({ length: TOP_RATED_DISPLAY_COUNT }).map((_, index) => (
-        <div
-          key={`ranked-loading-${index}`}
-          className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80'
-        />
-      ))}
-    </div>
+    <>
+      <div className='relative hidden md:block'>
+        <div className='-mx-1 overflow-x-auto pb-1 scrollbar-hide'>
+          <div className='flex min-w-max gap-5 px-1'>
+            {Array.from({ length: TOP_RATED_DISPLAY_COUNT }).map((_, index) => (
+              <div
+                key={`ranked-loading-desktop-${index}`}
+                className='w-[clamp(320px,31vw,560px)] flex-shrink-0'
+              >
+                <div className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80' />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className='-mx-2 overflow-x-auto pb-1 md:hidden'>
+        <div className='flex min-w-max gap-3 px-2'>
+          {Array.from({ length: TOP_RATED_DISPLAY_COUNT }).map((_, index) => (
+            <div
+              key={`ranked-loading-mobile-${index}`}
+              className='w-[86vw] max-w-[560px] flex-shrink-0'
+            >
+              <div className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80' />
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

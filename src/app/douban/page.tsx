@@ -35,6 +35,13 @@ interface ShowCountryOption {
   label: string;
 }
 
+type DiscoverSortMode = 'popularity' | 'date' | 'rating';
+
+interface SortOption {
+  value: DiscoverSortMode;
+  label: string;
+}
+
 interface DiscoverApiResponse {
   code: number;
   message: string;
@@ -166,6 +173,25 @@ const SHOW_COUNTRY_OPTIONS: ShowCountryOption[] = [
   { value: 'FR', label: '\u6cd5\u56fd' },
   { value: 'DE', label: '\u5fb7\u56fd' },
 ];
+const DEFAULT_SORT_MODE: DiscoverSortMode = 'popularity';
+const SORT_OPTIONS: SortOption[] = [
+  { value: 'popularity', label: '\u70ed\u5ea6' },
+  { value: 'date', label: '\u65f6\u95f4' },
+  { value: 'rating', label: '\u8bc4\u5206' },
+];
+
+function resolveDiscoverSortBy(
+  sortMode: DiscoverSortMode,
+  mediaType: 'movie' | 'tv'
+): string {
+  if (sortMode === 'rating') return 'vote_average.desc';
+  if (sortMode === 'date') {
+    return mediaType === 'movie'
+      ? 'primary_release_date.desc'
+      : 'first_air_date.desc';
+  }
+  return 'popularity.desc';
+}
 
 function DoubanPageClient() {
   const searchParams = useSearchParams();
@@ -212,10 +238,12 @@ function DoubanPageClient() {
   const [showLoadingMore, setShowLoadingMore] = useState(false);
   const [showCurrentPage, setShowCurrentPage] = useState(0);
   const [showHasMore, setShowHasMore] = useState(true);
+  const [sortMode, setSortMode] = useState<DiscoverSortMode>(DEFAULT_SORT_MODE);
 
   useEffect(() => {
     setFilters(DEFAULT_FILTERS);
     setShowAdvancedFilters(false);
+    setSortMode(DEFAULT_SORT_MODE);
     if (type === 'show') {
       setShowCountries([]);
     }
@@ -271,6 +299,7 @@ function DoubanPageClient() {
     const params = new URLSearchParams();
     params.set('media', media);
     params.set('include_adult', 'false');
+    params.set('sort_by', resolveDiscoverSortBy(sortMode, media));
 
     const releaseYearMin = Number(filters.releaseYearMin);
     const releaseYearMax = Number(filters.releaseYearMax);
@@ -310,7 +339,7 @@ function DoubanPageClient() {
     }
 
     return params.toString();
-  }, [filters, media, mergedGenres]);
+  }, [filters, media, mergedGenres, sortMode]);
 
   const fetchPage = useCallback(
     async (page: number, append: boolean) => {
@@ -416,6 +445,7 @@ function DoubanPageClient() {
           include_adult: 'false',
           page: String(page + 1),
           with_genres: SHOW_GENRE_FILTER,
+          sort_by: resolveDiscoverSortBy(sortMode, 'tv'),
         });
 
         if (showCountryFilter) {
@@ -445,7 +475,7 @@ function DoubanPageClient() {
         setShowLoadingMore(false);
       }
     },
-    [showCountryFilter]
+    [showCountryFilter, sortMode]
   );
 
   useEffect(() => {
@@ -728,8 +758,14 @@ function DoubanPageClient() {
                     </div>
                     <button
                       type='button'
-                      onClick={() => setShowCountries([])}
-                      disabled={showCountries.length === 0}
+                      onClick={() => {
+                        setShowCountries([]);
+                        setSortMode(DEFAULT_SORT_MODE);
+                      }}
+                      disabled={
+                        showCountries.length === 0 &&
+                        sortMode === DEFAULT_SORT_MODE
+                      }
                       className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-400 dark:hover:text-red-300'
                     >
                       <RotateCcw className='h-3.5 w-3.5' />
@@ -763,6 +799,32 @@ function DoubanPageClient() {
                         })}
                       </div>
                     </div>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
+                        <Tags className='h-4 w-4' />
+                        {'\u6392\u5e8f'}
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {SORT_OPTIONS.map((option) => {
+                          const active = sortMode === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type='button'
+                              aria-pressed={active}
+                              onClick={() => setSortMode(option.value)}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                active
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -788,7 +850,10 @@ function DoubanPageClient() {
                     </button>
                     <button
                       type='button'
-                      onClick={() => setFilters(DEFAULT_FILTERS)}
+                      onClick={() => {
+                        setFilters(DEFAULT_FILTERS);
+                        setSortMode(DEFAULT_SORT_MODE);
+                      }}
                       className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
                     >
                       <RotateCcw className='h-3.5 w-3.5' />
@@ -882,6 +947,32 @@ function DoubanPageClient() {
                               }`}
                             >
                               {genre.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
+                        <Tags className='h-4 w-4' />
+                        {'\u6392\u5e8f'}
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {SORT_OPTIONS.map((option) => {
+                          const active = sortMode === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type='button'
+                              aria-pressed={active}
+                              onClick={() => setSortMode(option.value)}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                active
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {option.label}
                             </button>
                           );
                         })}
