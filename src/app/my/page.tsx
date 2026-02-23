@@ -1931,7 +1931,7 @@ function MyPageClient() {
               </div>
 
               <div className='grid min-w-0 gap-4 lg:grid-cols-[0.9fr_1.1fr]'>
-                <div className='relative z-0 min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                <div className='relative z-0 min-w-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3'>
                     <p className='text-sm font-semibold text-gray-100'>
                       常看时段热力图
@@ -1942,14 +1942,14 @@ function MyPageClient() {
                   </div>
                   <div className='h-72 w-full sm:h-80'>
                     {watchTimeHeatmap.totalCount > 0 ? (
-                      <div className='h-full w-full overflow-x-auto'>
-                        <div className='h-full min-w-[340px] w-full sm:min-w-0'>
-                          <div className='grid h-full min-w-full grid-cols-[44px_repeat(7,minmax(0,1fr))] grid-rows-[24px_repeat(6,minmax(0,1fr))] gap-1'>
+                      <div className='h-full w-full'>
+                        <div className='h-full w-full'>
+                          <div className='grid h-full w-full grid-cols-[38px_repeat(7,minmax(0,1fr))] grid-rows-[24px_repeat(6,minmax(0,1fr))] gap-1 sm:grid-cols-[44px_repeat(7,minmax(0,1fr))]'>
                             <div />
                             {WATCH_TIME_HEATMAP_DAYS.map((dayLabel) => (
                               <div
                                 key={`heatmap-day-${dayLabel}`}
-                                className='flex items-center justify-center text-center text-[11px] text-gray-400'
+                                className='flex items-center justify-center text-center text-[10px] text-gray-400 sm:text-[11px]'
                               >
                                 {dayLabel}
                               </div>
@@ -1957,7 +1957,7 @@ function MyPageClient() {
 
                             {watchTimeHeatmap.rows.map((row) => (
                               <div key={`heatmap-row-${row.slotLabel}`} className='contents'>
-                                <div className='flex h-full items-center text-[11px] text-gray-400'>
+                                <div className='flex h-full items-center text-[10px] text-gray-400 sm:text-[11px]'>
                                   {row.slotLabel}
                                 </div>
                                 {row.cells.map((cell) => (
@@ -1988,7 +1988,7 @@ function MyPageClient() {
                   </div>
                 </div>
 
-                <div className='relative z-0 min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                <div className='relative z-0 min-w-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
                     <div>
                       <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
