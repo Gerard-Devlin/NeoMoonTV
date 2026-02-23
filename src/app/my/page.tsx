@@ -112,6 +112,16 @@ interface WatchFormatChartDataPoint {
   tv: number;
 }
 
+interface WatchTimeHeatmapCell {
+  dayLabel: string;
+  count: number;
+}
+
+interface WatchTimeHeatmapRow {
+  slotLabel: string;
+  cells: WatchTimeHeatmapCell[];
+}
+
 interface CompletionStats {
   completed: number;
   nearlyCompleted: number;
@@ -177,6 +187,15 @@ const WATCH_FORMAT_LABELS: Record<'movie' | 'tv', string> = {
   tv: '连续剧',
   movie: '电影',
 };
+const WATCH_TIME_HEATMAP_DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const;
+const WATCH_TIME_HEATMAP_SLOTS = [
+  { label: '00-03', start: 0, end: 4 },
+  { label: '04-07', start: 4, end: 8 },
+  { label: '08-11', start: 8, end: 12 },
+  { label: '12-15', start: 12, end: 16 },
+  { label: '16-19', start: 16, end: 20 },
+  { label: '20-23', start: 20, end: 24 },
+] as const;
 const COMPLETION_CHART_CONFIG = {
   visitors: {
     label: '记录数',
@@ -381,6 +400,17 @@ function isHttpPosterUrl(url: string): boolean {
 function getProgressPercent(record: PlayRecord): number {
   if (!record.total_time) return 0;
   return (record.play_time / record.total_time) * 100;
+}
+
+function getHeatmapSlotIndex(hour: number): number {
+  return Math.min(Math.floor(hour / 4), WATCH_TIME_HEATMAP_SLOTS.length - 1);
+}
+
+function getHeatmapCellColor(count: number, maxCount: number): string {
+  if (count <= 0 || maxCount <= 0) return 'rgba(63, 63, 70, 0.35)';
+  const ratio = count / maxCount;
+  const alpha = 0.2 + ratio * 0.75;
+  return `rgba(59, 130, 246, ${Math.min(0.95, alpha).toFixed(3)})`;
 }
 
 function getWeekStartTimestamp(timestamp: number): number {
@@ -809,6 +839,47 @@ function MyPageClient() {
     }
     return result;
   }, [analysisView, playRecords]);
+
+  const watchTimeHeatmap = useMemo<{
+    rows: WatchTimeHeatmapRow[];
+    maxCount: number;
+    totalCount: number;
+  }>(() => {
+    const counts = WATCH_TIME_HEATMAP_SLOTS.map(() =>
+      WATCH_TIME_HEATMAP_DAYS.map(() => 0)
+    );
+    let totalCount = 0;
+
+    for (const record of playRecords) {
+      if (!Number.isFinite(record.save_time)) continue;
+      const date = new Date(record.save_time);
+      if (Number.isNaN(date.getTime())) continue;
+
+      const dayIndex = (date.getDay() + 6) % 7;
+      const slotIndex = getHeatmapSlotIndex(date.getHours());
+      counts[slotIndex][dayIndex] += 1;
+      totalCount += 1;
+    }
+
+    let maxCount = 0;
+    for (const row of counts) {
+      for (const count of row) {
+        if (count > maxCount) maxCount = count;
+      }
+    }
+
+    const rows: WatchTimeHeatmapRow[] = WATCH_TIME_HEATMAP_SLOTS.map(
+      (slot, slotIndex) => ({
+        slotLabel: slot.label,
+        cells: WATCH_TIME_HEATMAP_DAYS.map((dayLabel, dayIndex) => ({
+          dayLabel,
+          count: counts[slotIndex][dayIndex],
+        })),
+      })
+    );
+
+    return { rows, maxCount, totalCount };
+  }, [playRecords]);
 
   const watchFormatStats = useMemo<WatchFormatStats>(() => {
     let tv = 0;
@@ -1859,135 +1930,194 @@ function MyPageClient() {
                 />
               </div>
 
-              <div className='relative z-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
-                <div className='mb-3 flex items-start justify-between gap-3'>
-                  <div>
-                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                      {ANALYSIS_VIEW_CONFIG[analysisView].title}
+              <div className='grid min-w-0 gap-4 lg:grid-cols-2'>
+                <div className='relative z-0 min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                  <div className='mb-3'>
+                    <p className='text-sm font-semibold text-gray-100'>
+                      常看时段热力图
                     </p>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>
-                      {ANALYSIS_VIEW_CONFIG[analysisView].description}
+                    <p className='text-xs text-gray-400'>
+                      按星期与时段统计观看频次
                     </p>
                   </div>
-                  <div className='inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800'>
-                    {(Object.keys(ANALYSIS_VIEW_CONFIG) as AnalysisView[]).map(
-                      (view) => (
-                        <button
-                          key={view}
-                          type='button'
-                          onClick={() => setAnalysisView(view)}
-                          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                            analysisView === view
-                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                          }`}
-                        >
-                          {ANALYSIS_VIEW_CONFIG[view].buttonLabel}
-                        </button>
-                      )
+                  <div className='h-72 w-full sm:h-80'>
+                    {watchTimeHeatmap.totalCount > 0 ? (
+                      <div className='h-full w-full overflow-x-auto pr-1'>
+                        <div className='h-full min-w-[360px] sm:min-w-[460px]'>
+                          <div className='grid h-full grid-cols-[44px_repeat(7,minmax(0,1fr))] grid-rows-[24px_repeat(6,minmax(0,1fr))] gap-1'>
+                            <div />
+                            {WATCH_TIME_HEATMAP_DAYS.map((dayLabel) => (
+                              <div
+                                key={`heatmap-day-${dayLabel}`}
+                                className='flex items-center justify-center text-center text-[11px] text-gray-400'
+                              >
+                                {dayLabel}
+                              </div>
+                            ))}
+
+                            {watchTimeHeatmap.rows.map((row) => (
+                              <div key={`heatmap-row-${row.slotLabel}`} className='contents'>
+                                <div className='flex h-full items-center text-[11px] text-gray-400'>
+                                  {row.slotLabel}
+                                </div>
+                                {row.cells.map((cell) => (
+                                  <div
+                                    key={`heatmap-cell-${row.slotLabel}-${cell.dayLabel}`}
+                                    className='flex h-full items-center justify-center rounded-md text-[10px] font-medium text-white/85'
+                                    style={{
+                                      backgroundColor: getHeatmapCellColor(
+                                        cell.count,
+                                        watchTimeHeatmap.maxCount
+                                      ),
+                                    }}
+                                    title={`${cell.dayLabel} ${row.slotLabel}: ${cell.count} 次`}
+                                  >
+                                    {cell.count > 0 ? cell.count : ''}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+                        暂无可用时段数据
+                      </div>
                     )}
                   </div>
                 </div>
-                <div className='h-72 w-full sm:h-80'>
-                  <ResponsiveContainer width='100%' height='100%'>
-                    <BarChart
-                      data={analysisChartData}
-                      margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray='3 3' vertical={false} />
-                      <XAxis
-                        dataKey='label'
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        minTickGap={24}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                        tickLine={false}
-                        axisLine={false}
-                        width={26}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(96,165,250,0.08)' }}
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null;
-                          const row = payload[0]?.payload as
-                            | AnalysisDataPoint
-                            | undefined;
-                          const range =
-                            row && typeof row.range === 'string'
-                              ? row.range
-                              : '';
-                          const value = payload[0]?.value;
-                          const numericValue =
-                            typeof value === 'number'
-                              ? value
-                              : Number(value || 0);
-                          const posters = row?.posters || [];
-                          const displayPosters = posters.slice(
-                            0,
-                            GENRE_TOOLTIP_POSTER_LIMIT
-                          );
-                          const hasMorePosters =
-                            posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
 
-                          return (
-                            <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
-                              <p className='mb-1 text-[11px] text-white/70'>
-                                {range}
-                              </p>
-                              <div className='flex items-center gap-2'>
-                                <span className='inline-block h-2 w-2 rounded-full bg-sky-400' />
-                                <span className='text-white/85'>观看数</span>
-                                <span className='font-semibold text-white'>
-                                  {Number.isFinite(numericValue)
-                                    ? numericValue
-                                    : 0}{' '}
-                                  次
-                                </span>
-                              </div>
-                              {displayPosters.length > 0 ? (
-                                <div className='mt-2 flex items-center gap-1.5'>
-                                  {displayPosters.map((poster, index) => {
-                                    const normalizedPoster =
-                                      normalizePosterUrl(poster);
-                                    return (
-                                      <img
-                                        key={`analysis-poster-${range}-${index}`}
-                                        src={processImageUrl(normalizedPoster)}
-                                        data-original-src={normalizedPoster}
-                                        alt={`时间段海报 ${index + 1}`}
-                                        className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
-                                        referrerPolicy='no-referrer'
-                                        loading='lazy'
-                                        decoding='async'
-                                        onError={handleGenreTooltipPosterError}
-                                      />
-                                    );
-                                  })}
-                                  {hasMorePosters ? (
-                                    <div className='flex h-24 w-16 items-center justify-center rounded bg-white/5 text-xl leading-none font-bold text-white/80 ring-1 ring-white/10'>
-                                      ...
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : (
-                                <p className='mt-2 text-[11px] text-white/55'>
-                                  暂无最近海报
+                <div className='relative z-0 min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                  <div className='mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+                    <div>
+                      <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                        {ANALYSIS_VIEW_CONFIG[analysisView].title}
+                      </p>
+                      <p className='text-xs text-gray-500 dark:text-gray-400'>
+                        {ANALYSIS_VIEW_CONFIG[analysisView].description}
+                      </p>
+                    </div>
+                    <div className='inline-flex w-full flex-wrap rounded-lg bg-gray-100 p-1 dark:bg-gray-800 sm:w-auto sm:flex-nowrap'>
+                      {(Object.keys(ANALYSIS_VIEW_CONFIG) as AnalysisView[]).map(
+                        (view) => (
+                          <button
+                            key={view}
+                            type='button'
+                            onClick={() => setAnalysisView(view)}
+                            className={`flex-1 rounded-md px-3 py-1 text-center text-xs font-medium transition-colors sm:flex-none ${
+                              analysisView === view
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                          >
+                            {ANALYSIS_VIEW_CONFIG[view].buttonLabel}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  <div className='h-72 w-full sm:h-80'>
+                    <ResponsiveContainer width='100%' height='100%'>
+                      <BarChart
+                        data={analysisChartData}
+                        margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray='3 3' vertical={false} />
+                        <XAxis
+                          dataKey='label'
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          minTickGap={24}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tickLine={false}
+                          axisLine={false}
+                          width={26}
+                        />
+                        <Tooltip
+                          cursor={{ fill: 'rgba(96,165,250,0.08)' }}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const row = payload[0]?.payload as
+                              | AnalysisDataPoint
+                              | undefined;
+                            const range =
+                              row && typeof row.range === 'string'
+                                ? row.range
+                                : '';
+                            const value = payload[0]?.value;
+                            const numericValue =
+                              typeof value === 'number'
+                                ? value
+                                : Number(value || 0);
+                            const posters = row?.posters || [];
+                            const displayPosters = posters.slice(
+                              0,
+                              GENRE_TOOLTIP_POSTER_LIMIT
+                            );
+                            const hasMorePosters =
+                              posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
+
+                            return (
+                              <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                <p className='mb-1 text-[11px] text-white/70'>
+                                  {range}
                                 </p>
-                              )}
-                            </div>
-                          );
-                        }}
-                      />
-                      <Bar
-                        dataKey='count'
-                        fill='#60a5fa'
-                        radius={[6, 6, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
+                                <div className='flex items-center gap-2'>
+                                  <span className='inline-block h-2 w-2 rounded-full bg-sky-400' />
+                                  <span className='text-white/85'>观看数</span>
+                                  <span className='font-semibold text-white'>
+                                    {Number.isFinite(numericValue)
+                                      ? numericValue
+                                      : 0}{' '}
+                                    次
+                                  </span>
+                                </div>
+                                {displayPosters.length > 0 ? (
+                                  <div className='mt-2 flex items-center gap-1.5'>
+                                    {displayPosters.map((poster, index) => {
+                                      const normalizedPoster =
+                                        normalizePosterUrl(poster);
+                                      return (
+                                        <img
+                                          key={`analysis-poster-${range}-${index}`}
+                                          src={processImageUrl(normalizedPoster)}
+                                          data-original-src={normalizedPoster}
+                                          alt={`时间段海报 ${index + 1}`}
+                                          className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
+                                          referrerPolicy='no-referrer'
+                                          loading='lazy'
+                                          decoding='async'
+                                          onError={handleGenreTooltipPosterError}
+                                        />
+                                      );
+                                    })}
+                                    {hasMorePosters ? (
+                                      <div className='flex h-24 w-16 items-center justify-center rounded bg-white/5 text-xl leading-none font-bold text-white/80 ring-1 ring-white/10'>
+                                        ...
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <p className='mt-2 text-[11px] text-white/55'>
+                                    暂无最近海报
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar
+                          dataKey='count'
+                          fill='#60a5fa'
+                          radius={[6, 6, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
             </section>
