@@ -16,6 +16,8 @@ import {
   BarChart,
   CartesianGrid,
   Label,
+  Pie,
+  PieChart,
   PolarAngleAxis,
   PolarGrid,
   PolarRadiusAxis,
@@ -51,6 +53,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  type ChartConfig,
+  ChartContainer,
+} from '@/components/ui/chart';
 import VideoCard from '@/components/VideoCard';
 
 type PlayRecordItem = PlayRecord & { key: string };
@@ -104,6 +110,23 @@ interface WatchFormatChartDataPoint {
   tv: number;
 }
 
+interface CompletionStats {
+  completed: number;
+  nearlyCompleted: number;
+  halfWatched: number;
+  started: number;
+  barelyStarted: number;
+  total: number;
+  completionRate: number;
+}
+
+interface CompletionChartDataPoint {
+  browser: string;
+  label: string;
+  visitors: number;
+  fill: string;
+}
+
 const PolarAngleAxisCompat = PolarAngleAxis as unknown as (props: {
   dataKey: string;
   tick?: { fill: string; fontSize: number };
@@ -152,6 +175,31 @@ const WATCH_FORMAT_LABELS: Record<'movie' | 'tv', string> = {
   tv: '连续剧',
   movie: '电影',
 };
+const COMPLETION_CHART_CONFIG = {
+  visitors: {
+    label: '记录数',
+  },
+  completed: {
+    label: '已完播',
+    color: '#83B3E3',
+  },
+  nearlyCompleted: {
+    label: '接近完播',
+    color: '#3B82F6',
+  },
+  halfWatched: {
+    label: '观看过半',
+    color: '#2563EB',
+  },
+  started: {
+    label: '观看起步',
+    color: '#1D4ED8',
+  },
+  barelyStarted: {
+    label: '浅尝即止',
+    color: '#1E40AF',
+  },
+} satisfies ChartConfig;
 const LONG_PRESS_DURATION_MS = 420;
 const GENRE_SCOPE_OPTIONS: Array<{ value: GenreScope; label: string }> = [
   { value: 'all', label: '全部' },
@@ -465,6 +513,67 @@ function moveBucket(
   return next;
 }
 
+function CompletionPieLegend({
+  chartData,
+}: {
+  chartData: CompletionChartDataPoint[];
+}) {
+  const total = chartData.reduce((sum, item) => sum + item.visitors, 0);
+
+  return (
+    <div className='relative z-10 overflow-visible rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+      <div className='mb-3'>
+        <p className='text-sm font-semibold text-gray-100'>完播情况</p>
+        <p className='text-xs text-gray-400'>按播放进度统计完播层级</p>
+      </div>
+      <div className='relative h-72 w-full overflow-visible sm:h-80'>
+        {total > 0 ? (
+          <ChartContainer
+            config={COMPLETION_CHART_CONFIG}
+            className='mx-auto h-full w-full aspect-auto'
+          >
+            <PieChart margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+              <Pie
+                data={chartData}
+                dataKey='visitors'
+                nameKey='browser'
+                cx='50%'
+                cy='50%'
+                outerRadius={110}
+              />
+            </PieChart>
+          </ChartContainer>
+        ) : (
+          <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+            暂无可用完播数据
+          </div>
+        )}
+      </div>
+      <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400'>
+        {chartData.map((item) => {
+          const configEntry =
+            COMPLETION_CHART_CONFIG[item.browser as keyof typeof COMPLETION_CHART_CONFIG];
+          const color =
+            configEntry && typeof configEntry === 'object' && 'color' in configEntry
+              ? configEntry.color
+              : '#3b82f6';
+
+          return (
+            <div key={item.browser} className='inline-flex items-center gap-1.5'>
+              <span
+                className='inline-block h-2.5 w-2.5 rounded-full'
+                style={{ backgroundColor: color }}
+              />
+              <span>{item.label}</span>
+              <span className='text-gray-300'>{item.visitors}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MyPageClient() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('play');
   const [playRecords, setPlayRecords] = useState<PlayRecordItem[]>([]);
@@ -717,6 +826,91 @@ function MyPageClient() {
       },
     ],
     [watchFormatStats.movie, watchFormatStats.tv]
+  );
+
+  const completionStats = useMemo<CompletionStats>(() => {
+    const stats = {
+      completed: 0,
+      nearlyCompleted: 0,
+      halfWatched: 0,
+      started: 0,
+      barelyStarted: 0,
+    };
+
+    for (const record of playRecords) {
+      const total = Number(record.total_time || 0);
+      const played = Number(record.play_time || 0);
+      if (!Number.isFinite(total) || total <= 0) continue;
+
+      const ratio = Math.max(0, Math.min(1, played / total));
+      if (ratio >= 0.95) {
+        stats.completed += 1;
+      } else if (ratio >= 0.8) {
+        stats.nearlyCompleted += 1;
+      } else if (ratio >= 0.5) {
+        stats.halfWatched += 1;
+      } else if (ratio >= 0.2) {
+        stats.started += 1;
+      } else {
+        stats.barelyStarted += 1;
+      }
+    }
+
+    const total =
+      stats.completed +
+      stats.nearlyCompleted +
+      stats.halfWatched +
+      stats.started +
+      stats.barelyStarted;
+    const completionRate = total > 0 ? (stats.completed / total) * 100 : 0;
+
+    return {
+      ...stats,
+      total,
+      completionRate,
+    };
+  }, [playRecords]);
+
+  const completionChartData = useMemo<CompletionChartDataPoint[]>(
+    () => [
+      {
+        browser: 'completed',
+        label: '已完播',
+        visitors: completionStats.completed,
+        fill: 'var(--color-completed)',
+      },
+      {
+        browser: 'nearlyCompleted',
+        label: '接近完播',
+        visitors: completionStats.nearlyCompleted,
+        fill: 'var(--color-nearlyCompleted)',
+      },
+      {
+        browser: 'halfWatched',
+        label: '观看过半',
+        visitors: completionStats.halfWatched,
+        fill: 'var(--color-halfWatched)',
+      },
+      {
+        browser: 'started',
+        label: '观看起步',
+        visitors: completionStats.started,
+        fill: 'var(--color-started)',
+      },
+      {
+        browser: 'barelyStarted',
+        label: '浅尝即止',
+        visitors: completionStats.barelyStarted,
+        fill: 'var(--color-barelyStarted)',
+      },
+    ],
+    [
+      completionStats.barelyStarted,
+      completionStats.completed,
+      completionStats.halfWatched,
+      completionStats.nearlyCompleted,
+      completionStats.started,
+    ]
   );
 
   const fetchGenresForRecord = useCallback(
@@ -1355,7 +1549,7 @@ function MyPageClient() {
                 我的分析
               </h2>
 
-              <div className='grid gap-4 lg:grid-cols-2'>
+              <div className='grid gap-4 lg:grid-cols-3'>
                 <div className='relative z-30 overflow-visible rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3 flex items-start justify-between gap-3'>
                     <div>
@@ -1647,6 +1841,10 @@ function MyPageClient() {
                     </div>
                   </div>
                 </div>
+
+                <CompletionPieLegend
+                  chartData={completionChartData}
+                />
               </div>
 
               <div className='relative z-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
