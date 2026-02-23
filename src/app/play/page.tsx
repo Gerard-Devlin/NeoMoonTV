@@ -1407,7 +1407,15 @@ function PlayPageClient() {
     const video = player?.video as HTMLVideoElement | undefined;
     if (!player || !video) return;
 
-    const url = video.currentSrc || video.src || '';
+    const directUrlFromState =
+      videoUrl ||
+      detailRef.current?.episodes?.[currentEpisodeIndexRef.current] ||
+      '';
+    const runtimeUrl = video.currentSrc || video.src || '';
+    const url =
+      runtimeUrl && !/^blob:/i.test(runtimeUrl)
+        ? runtimeUrl
+        : directUrlFromState || runtimeUrl;
     if (!url) {
       player.notice.show = '当前视频未就绪，暂时无法投屏';
       return;
@@ -1431,7 +1439,7 @@ function PlayPageClient() {
     }
 
     player.notice.show = '当前浏览器不支持投屏';
-  }, [openAirPlayPicker, openRemotePlaybackPicker, startGoogleCast]);
+  }, [openAirPlayPicker, openRemotePlaybackPicker, startGoogleCast, videoUrl]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
