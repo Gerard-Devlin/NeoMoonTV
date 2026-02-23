@@ -1930,7 +1930,7 @@ function MyPageClient() {
                 />
               </div>
 
-              <div className='grid min-w-0 gap-4 lg:grid-cols-[0.9fr_1.1fr]'>
+              <div className='grid min-w-0 gap-4 lg:grid-cols-[0.8fr_1.2fr]'>
                 <div className='relative z-0 min-w-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3'>
                     <p className='text-sm font-semibold text-gray-100'>
