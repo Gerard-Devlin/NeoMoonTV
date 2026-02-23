@@ -56,6 +56,8 @@ import {
 import {
   type ChartConfig,
   ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
 } from '@/components/ui/chart';
 import VideoCard from '@/components/VideoCard';
 
@@ -533,6 +535,16 @@ function CompletionPieLegend({
             className='mx-auto h-full w-full aspect-auto'
           >
             <PieChart margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    hideLabel
+                    nameKey='browser'
+                    className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'
+                  />
+                }
+              />
               <Pie
                 data={chartData}
                 dataKey='visitors'
