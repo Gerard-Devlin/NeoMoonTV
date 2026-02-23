@@ -4319,7 +4319,7 @@ function PlayPageClient() {
                         onScroll={updateCastScrollState}
                         className='-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
-                        {displayCast.slice(0, 12).map((item) => (
+                        {displayCast.map((item) => (
                           <button
                             type='button'
                             key={`play-cast-${item.id}-${item.name}`}
@@ -4426,7 +4426,7 @@ function PlayPageClient() {
                         onScroll={updateRecommendedScrollState}
                         className='-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-2 scroll-smooth scrollbar-hide'
                       >
-                        {displayRecommendations.slice(0, 18).map((item) => (
+                        {displayRecommendations.slice(0, 20).map((item) => (
                           <button
                             type='button'
                             key={`play-recommend-${item.mediaType}-${item.id}`}
@@ -4460,10 +4460,10 @@ function PlayPageClient() {
                               ) : null}
                             </div>
                             <div className='mt-2 h-14'>
-                              <p className='line-clamp-2 h-8 text-xs font-medium leading-4 text-gray-900 dark:text-gray-100'>
+                              <p className='line-clamp-2 text-xs font-medium leading-4 text-gray-900 dark:text-gray-100'>
                                 {item.title}
                               </p>
-                              <p className='mt-0 h-4 text-[11px] leading-4 text-gray-600 dark:text-gray-400'>
+                              <p className='mt-0.5 text-[11px] leading-4 text-gray-600 dark:text-gray-400'>
                                 {item.year || '未知年份'}
                               </p>
                             </div>

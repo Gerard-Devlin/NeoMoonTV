@@ -7,7 +7,7 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const DETAIL_CACHE_SECONDS = 600;
 const DETAIL_REQUEST_TIMEOUT_MS = 10000;
 const DETAIL_CACHE_MAX_ENTRIES = 300;
-const DETAIL_CACHE_VERSION = 'v5';
+const DETAIL_CACHE_VERSION = 'v7';
 
 type TmdbMediaType = 'movie' | 'tv';
 type LogoLanguagePreference = 'zh' | 'en';
@@ -28,8 +28,22 @@ interface TmdbDetailRawGenre {
 interface TmdbDetailRawCast {
   id?: number;
   name?: string;
+  original_name?: string;
   character?: string;
   profile_path?: string | null;
+}
+
+interface TmdbDetailRawAggregateRole {
+  character?: string;
+  episode_count?: number;
+}
+
+interface TmdbDetailRawAggregateCast {
+  id?: number;
+  name?: string;
+  original_name?: string;
+  profile_path?: string | null;
+  roles?: TmdbDetailRawAggregateRole[];
 }
 
 interface TmdbDetailRawVideo {
@@ -73,6 +87,9 @@ interface TmdbDetailRawResponse {
   genres?: TmdbDetailRawGenre[];
   credits?: {
     cast?: TmdbDetailRawCast[];
+  };
+  aggregate_credits?: {
+    cast?: TmdbDetailRawAggregateCast[];
   };
   videos?: {
     results?: TmdbDetailRawVideo[];
@@ -719,7 +736,7 @@ async function fetchTmdbDetailRaw(
   const appendToResponse =
     mediaType === 'movie'
       ? 'credits,videos,release_dates,images,recommendations'
-      : 'credits,videos,content_ratings,images,recommendations';
+      : 'aggregate_credits,credits,videos,content_ratings,images,recommendations';
 
   const includeImageLanguage =
     logoLanguagePreference === 'en' ? 'en,null,zh' : 'zh,null,en';
@@ -760,15 +777,42 @@ function mapRawDetailToResponse(
     fallbackScore: string;
   }
 ): TmdbDetailResponse {
-  const cast = (raw.credits?.cast || [])
-    .slice(0, 8)
-    .map((member) => ({
-      id: member.id ?? 0,
-      name: member.name || '',
-      character: member.character || '',
-      profile: toImageUrl(member.profile_path, 'w185'),
-    }))
-    .filter((member) => member.id > 0 && member.name);
+  const normalizedMovieCast = (raw.credits?.cast || []).map((member) => ({
+    id: member.id ?? 0,
+    name: (member.name || member.original_name || '').trim(),
+    character: (member.character || '').trim(),
+    profile: toImageUrl(member.profile_path, 'w185'),
+  }));
+
+  const normalizedTvAggregateCast = (raw.aggregate_credits?.cast || []).map(
+    (member) => {
+      const primaryRole = (member.roles || []).reduce<TmdbDetailRawAggregateRole>(
+        (best, role) =>
+          (role.episode_count || 0) > (best.episode_count || 0) ? role : best,
+        {}
+      );
+
+      return {
+        id: member.id ?? 0,
+        name: (member.name || member.original_name || '').trim(),
+        character: (primaryRole.character || '').trim(),
+        profile: toImageUrl(member.profile_path, 'w185'),
+      };
+    }
+  );
+
+  const castSource =
+    input.mediaType === 'tv' && normalizedTvAggregateCast.length > 0
+      ? normalizedTvAggregateCast
+      : normalizedMovieCast;
+
+  const castDedupe = new Set<number>();
+  const cast = castSource.filter((member) => {
+    if (member.id <= 0 || !member.name) return false;
+    if (castDedupe.has(member.id)) return false;
+    castDedupe.add(member.id);
+    return true;
+  });
 
   const contentRating =
     input.mediaType === 'movie'
@@ -785,7 +829,7 @@ function mapRawDetailToResponse(
     input.logoLanguagePreference
   );
   const recommendations = (raw.recommendations?.results || [])
-    .slice(0, 20)
+    .slice(0, 24)
     .map((item) => {
       const id = Number(item.id);
       if (!Number.isInteger(id) || id <= 0) return null;
