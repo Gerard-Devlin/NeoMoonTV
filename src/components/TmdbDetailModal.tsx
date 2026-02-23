@@ -394,7 +394,7 @@ export default function TmdbDetailModal({
                           主演
                         </p>
                         <div className='flex flex-wrap gap-2'>
-                          {detail.cast.slice(0, 10).map((person) => (
+                          {detail.cast.slice(0, 8).map((person) => (
                             <Link
                               key={`${person.id}-${person.name}`}
                               href={`/person/${person.id}`}
