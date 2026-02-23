@@ -1317,9 +1317,7 @@ function PlayPageClient() {
 
   const startGoogleCast = useCallback(
     async (url: string, currentTime: number) => {
-      if (!url) return false;
-      const sdkReady = await ensureGoogleCastSdk();
-      if (!sdkReady || typeof window === 'undefined') return false;
+      if (!url || typeof window === 'undefined') return false;
 
       const globalWindow = window as any;
       const castFramework = globalWindow.cast?.framework;
@@ -1367,7 +1365,7 @@ function PlayPageClient() {
         return false;
       }
     },
-    [ensureGoogleCastSdk, getCastMimeType]
+    [getCastMimeType]
   );
 
   const openRemotePlaybackPicker = useCallback(
@@ -1422,12 +1420,35 @@ function PlayPageClient() {
     }
 
     const currentTime = player.currentTime || 0;
+    const globalWindow = typeof window !== 'undefined' ? (window as any) : null;
+    const castReadyNow = Boolean(
+      globalWindow?.cast?.framework && globalWindow?.chrome?.cast
+    );
+    const ua =
+      typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+    const preferGoogleCast = /(chrome|crios|edg|android)/.test(ua);
+
+    // 优先走 Google Cast，避免前置 await 破坏用户手势，导致设备选择器无法弹出。
+    if (preferGoogleCast) {
+      if (!castReadyNow) {
+        void ensureGoogleCastSdk();
+        player.notice.show = '投屏组件初始化中，请再点一次投屏';
+        return;
+      }
+
+      if (await startGoogleCast(url, currentTime)) {
+        player.notice.show = '已连接投屏设备';
+        player.pause();
+        return;
+      }
+    }
+
     if (await openRemotePlaybackPicker(video)) {
       player.notice.show = '已打开投屏设备列表';
       return;
     }
 
-    if (await startGoogleCast(url, currentTime)) {
+    if (!preferGoogleCast && castReadyNow && (await startGoogleCast(url, currentTime))) {
       player.notice.show = '已连接投屏设备';
       player.pause();
       return;
@@ -1438,8 +1459,14 @@ function PlayPageClient() {
       return;
     }
 
-    player.notice.show = '当前浏览器不支持投屏';
-  }, [openAirPlayPicker, openRemotePlaybackPicker, startGoogleCast, videoUrl]);
+    player.notice.show = '未发现可用投屏设备或当前浏览器不支持投屏';
+  }, [
+    ensureGoogleCastSdk,
+    openAirPlayPicker,
+    openRemotePlaybackPicker,
+    startGoogleCast,
+    videoUrl,
+  ]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
