@@ -98,10 +98,10 @@ export default function SeasonPickerModal({
             <X className='h-4 w-4' />
           </button>
 
-          <div className='space-y-2 text-center sm:text-left'>
+          <div className='text-center sm:text-left'>
             <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季数</h3>
             {normalizedLogo ? (
-              <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
+              <div className='relative mx-auto mt-2 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
                 <img
                   src={normalizedLogo}
                   alt={`${normalizedTitle} logo`}
@@ -109,11 +109,11 @@ export default function SeasonPickerModal({
                 />
               </div>
             ) : (
-              <p className='text-sm text-zinc-300/90'>{normalizedTitle}</p>
+              <p className='mt-2 text-sm text-zinc-300/90'>{normalizedTitle}</p>
             )}
           </div>
 
-          <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
+          <div className='mt-2 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
             {Array.from({ length: count }, (_, idx) => idx + 1).map((season) => (
               <button
                 key={`season-pick-${season}`}
