@@ -13,6 +13,16 @@ interface TmdbSearchResponse {
   }>;
 }
 
+function buildNoStoreHeaders(): HeadersInit {
+  return {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
+  };
+}
+
 function normalizeType(value: string | null): TmdbMediaType {
   return value === 'tv' || value === 'show' ? 'tv' : 'movie';
 }
@@ -84,7 +94,10 @@ export async function GET(request: Request) {
   const title = (searchParams.get('title') || '').trim();
 
   if (!title) {
-    return NextResponse.json({ error: 'missing title parameter' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'missing title parameter' },
+      { status: 400, headers: buildNoStoreHeaders() }
+    );
   }
 
   const mediaType = normalizeType(searchParams.get('type'));
@@ -101,5 +114,8 @@ export async function GET(request: Request) {
     ? `${TMDB_WEB_BASE_URL}/${mediaType}/${resolvedId}?language=zh-CN`
     : fallbackUrl;
 
-  return NextResponse.redirect(targetUrl, 307);
+  return NextResponse.redirect(targetUrl, {
+    status: 307,
+    headers: buildNoStoreHeaders(),
+  });
 }

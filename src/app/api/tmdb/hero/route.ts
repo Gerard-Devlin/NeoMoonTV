@@ -4,8 +4,6 @@ export const runtime = 'edge';
 
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
-const HERO_CACHE_SECONDS = 300;
-const HERO_CACHE_MAX_ENTRIES = 8;
 
 type TmdbMediaType = 'movie' | 'tv';
 type HeroMediaFilter = 'all' | TmdbMediaType;
@@ -65,19 +63,6 @@ interface TmdbHeroMeta {
   seasons: number | null;
   episodes: number | null;
 }
-
-interface TmdbHeroCacheEntry {
-  expiresAt: number;
-  results: TmdbHeroItem[];
-}
-
-const globalWithTmdbHeroCache = globalThis as typeof globalThis & {
-  __tmdbHeroCache?: Map<string, TmdbHeroCacheEntry>;
-};
-
-const tmdbHeroCache =
-  globalWithTmdbHeroCache.__tmdbHeroCache ||
-  (globalWithTmdbHeroCache.__tmdbHeroCache = new Map());
 
 function toYear(value?: string): string {
   if (!value) return '';
@@ -239,35 +224,14 @@ function normalizeWithOriginCountry(value: string | null): string {
     .toUpperCase();
 }
 
-function buildCacheHeaders(): HeadersInit {
+function buildNoStoreHeaders(): HeadersInit {
   return {
-    'Cache-Control': `public, max-age=${HERO_CACHE_SECONDS}, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
-    'CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
-    'Vercel-CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
   };
-}
-
-function readHeroCache(key: string): TmdbHeroItem[] | null {
-  const hit = tmdbHeroCache.get(key);
-  if (!hit) return null;
-  if (hit.expiresAt <= Date.now()) {
-    tmdbHeroCache.delete(key);
-    return null;
-  }
-  return hit.results;
-}
-
-function writeHeroCache(key: string, results: TmdbHeroItem[]): void {
-  tmdbHeroCache.set(key, {
-    results,
-    expiresAt: Date.now() + HERO_CACHE_SECONDS * 1000,
-  });
-
-  if (tmdbHeroCache.size <= HERO_CACHE_MAX_ENTRIES) return;
-  const oldestKey = tmdbHeroCache.keys().next().value;
-  if (oldestKey) {
-    tmdbHeroCache.delete(oldestKey);
-  }
 }
 
 export async function GET(request: Request) {
@@ -277,22 +241,17 @@ export async function GET(request: Request) {
   const withOriginCountry = normalizeWithOriginCountry(
     searchParams.get('with_origin_country')
   );
-  const cacheKey = `hero:${mediaFilter}:${withGenres || 'none'}:${withOriginCountry || 'none'}`;
 
   const apiKey =
     process.env.TMDB_API_KEY ||
     process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
   if (!apiKey) {
-    return NextResponse.json({ results: [] }, { status: 200 });
-  }
-
-  const cacheHit = readHeroCache(cacheKey);
-  if (cacheHit) {
     return NextResponse.json(
-      { results: cacheHit },
+      { results: [] },
       {
-        headers: buildCacheHeaders(),
+        status: 200,
+        headers: buildNoStoreHeaders(),
       }
     );
   }
@@ -329,7 +288,10 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
-      return NextResponse.json({ results: [] }, { status: 200 });
+      return NextResponse.json(
+        { results: [] },
+        { status: 200, headers: buildNoStoreHeaders() }
+      );
     }
 
     const data = (await response.json()) as TmdbTrendingResponse;
@@ -368,16 +330,17 @@ export async function GET(request: Request) {
       })
     );
 
-    writeHeroCache(cacheKey, results);
-
     return NextResponse.json(
       { results },
       {
-        headers: buildCacheHeaders(),
+        headers: buildNoStoreHeaders(),
       }
     );
   } catch {
-    return NextResponse.json({ results: [] }, { status: 200 });
+    return NextResponse.json(
+      { results: [] },
+      { status: 200, headers: buildNoStoreHeaders() }
+    );
   } finally {
     clearTimeout(timeoutId);
   }

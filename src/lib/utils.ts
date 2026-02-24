@@ -1,37 +1,116 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
-import Hls from 'hls.js';
 import clsx, { type ClassValue } from 'clsx';
+import Hls from 'hls.js';
 import { twMerge } from 'tailwind-merge';
+
+type ProxyKind = 'image' | 'douban';
+
+interface ProxyCacheEntry {
+  expiresAt: number;
+  value: string | null;
+}
+
+const PROXY_CACHE_TTL_MS = 3000;
+const proxyCache: Record<ProxyKind, ProxyCacheEntry> = {
+  image: { expiresAt: 0, value: null },
+  douban: { expiresAt: 0, value: null },
+};
+let hasBoundProxyStorageListener = false;
 
 export function cn(...inputs: Array<ClassValue>): string {
   return twMerge(clsx(...inputs));
+}
+
+function normalizeProxyValue(value: string | null | undefined): string | null {
+  const normalized = (value || '').trim();
+  return normalized ? normalized : null;
+}
+
+function safeParseBoolean(value: string | null): boolean | null {
+  if (value === null) return null;
+  try {
+    return Boolean(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+function clearProxyCache(): void {
+  proxyCache.image.expiresAt = 0;
+  proxyCache.image.value = null;
+  proxyCache.douban.expiresAt = 0;
+  proxyCache.douban.value = null;
+}
+
+function ensureProxyStorageListener(): void {
+  if (typeof window === 'undefined' || hasBoundProxyStorageListener) return;
+  hasBoundProxyStorageListener = true;
+  window.addEventListener('storage', (event) => {
+    if (
+      event.key === null ||
+      event.key === 'enableImageProxy' ||
+      event.key === 'imageProxyUrl' ||
+      event.key === 'enableDoubanProxy' ||
+      event.key === 'doubanProxyUrl'
+    ) {
+      clearProxyCache();
+    }
+  });
+}
+
+function readProxyUrl(options: {
+  enableKey: string;
+  urlKey: string;
+  runtimeKey: 'IMAGE_PROXY' | 'DOUBAN_PROXY';
+}): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const enableValue = safeParseBoolean(localStorage.getItem(options.enableKey));
+  if (enableValue === false) {
+    return null;
+  }
+
+  const localProxy = normalizeProxyValue(localStorage.getItem(options.urlKey));
+  if (localProxy) {
+    return localProxy;
+  }
+
+  return normalizeProxyValue((window as any).RUNTIME_CONFIG?.[options.runtimeKey]);
+}
+
+function getCachedProxyUrl(
+  kind: ProxyKind,
+  options: {
+    enableKey: string;
+    urlKey: string;
+    runtimeKey: 'IMAGE_PROXY' | 'DOUBAN_PROXY';
+  }
+): string | null {
+  if (typeof window === 'undefined') return null;
+
+  ensureProxyStorageListener();
+  const now = Date.now();
+  const cached = proxyCache[kind];
+  if (cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const nextValue = readProxyUrl(options);
+  cached.value = nextValue;
+  cached.expiresAt = now + PROXY_CACHE_TTL_MS;
+  return nextValue;
 }
 
 /**
  * 获取图片代理 URL 设置
  */
 export function getImageProxyUrl(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  // 本地未开启图片代理，则不使用代理
-  const enableImageProxy = localStorage.getItem('enableImageProxy');
-  if (enableImageProxy !== null) {
-    if (!JSON.parse(enableImageProxy) as boolean) {
-      return null;
-    }
-  }
-
-  const localImageProxy = localStorage.getItem('imageProxyUrl');
-  if (localImageProxy != null) {
-    return localImageProxy.trim() ? localImageProxy.trim() : null;
-  }
-
-  // 如果未设置，则使用全局对象
-  const serverImageProxy = (window as any).RUNTIME_CONFIG?.IMAGE_PROXY;
-  return serverImageProxy && serverImageProxy.trim()
-    ? serverImageProxy.trim()
-    : null;
+  return getCachedProxyUrl('image', {
+    enableKey: 'enableImageProxy',
+    urlKey: 'imageProxyUrl',
+    runtimeKey: 'IMAGE_PROXY',
+  });
 }
 
 /**
@@ -50,26 +129,11 @@ export function processImageUrl(originalUrl: string): string {
  * 获取豆瓣代理 URL 设置
  */
 export function getDoubanProxyUrl(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  // 本地未开启豆瓣代理，则不使用代理
-  const enableDoubanProxy = localStorage.getItem('enableDoubanProxy');
-  if (enableDoubanProxy !== null) {
-    if (!JSON.parse(enableDoubanProxy) as boolean) {
-      return null;
-    }
-  }
-
-  const localDoubanProxy = localStorage.getItem('doubanProxyUrl');
-  if (localDoubanProxy != null) {
-    return localDoubanProxy.trim() ? localDoubanProxy.trim() : null;
-  }
-
-  // 如果未设置，则使用全局对象
-  const serverDoubanProxy = (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY;
-  return serverDoubanProxy && serverDoubanProxy.trim()
-    ? serverDoubanProxy.trim()
-    : null;
+  return getCachedProxyUrl('douban', {
+    enableKey: 'enableDoubanProxy',
+    urlKey: 'doubanProxyUrl',
+    runtimeKey: 'DOUBAN_PROXY',
+  });
 }
 
 /**

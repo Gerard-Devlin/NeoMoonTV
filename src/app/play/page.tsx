@@ -1421,6 +1421,30 @@ function PlayPageClient() {
 
     const currentTime = player.currentTime || 0;
     const globalWindow = typeof window !== 'undefined' ? (window as any) : null;
+    const nativeBridge = globalWindow?.NeoMoonTVNative;
+    if (nativeBridge) {
+      try {
+        // Android WebView wrapper: player cast button should trigger native DLNA device picker.
+        if (typeof nativeBridge.castCurrent === 'function') {
+          nativeBridge.castCurrent();
+          player.notice.show = '正在搜索 DLNA 设备...';
+          return;
+        }
+        if (typeof nativeBridge.cast === 'function') {
+          nativeBridge.cast(
+            url,
+            typeof document !== 'undefined' ? document.title || 'MoonTV' : 'MoonTV',
+            video.poster || '',
+            currentTime
+          );
+          player.notice.show = '正在搜索 DLNA 设备...';
+          return;
+        }
+      } catch (err) {
+        console.warn('Native DLNA 调起失败:', err);
+      }
+    }
+
     const castReadyNow = Boolean(
       globalWindow?.cast?.framework && globalWindow?.chrome?.cast
     );

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { getCacheTime } from '@/lib/config';
 import { DoubanItem } from '@/lib/types';
 
 export const runtime = 'edge';
@@ -56,11 +55,13 @@ interface TmdbKeywordResponse {
   results?: TmdbKeywordItem[];
 }
 
-function buildCacheHeaders(cacheTime: number): Record<string, string> {
+function buildNoStoreHeaders(): Record<string, string> {
   return {
-    'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-    'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-    'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
   };
 }
 
@@ -291,7 +292,6 @@ function emptyResponse(): DiscoverApiResponse {
 }
 
 export async function GET(request: Request) {
-  const cacheTime = await getCacheTime();
   const { searchParams } = new URL(request.url);
   const mediaType = parseMedia(searchParams.get('media'));
   const page = parsePage(searchParams.get('page'));
@@ -303,7 +303,7 @@ export async function GET(request: Request) {
   if (!apiKey) {
     return NextResponse.json(
       { error: 'tmdb api key missing', ...emptyResponse() },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   }
 
@@ -328,7 +328,7 @@ export async function GET(request: Request) {
     if (!response.ok) {
       return NextResponse.json(
         { error: `tmdb discover failed: ${response.status}`, ...emptyResponse() },
-        { status: response.status, headers: buildCacheHeaders(cacheTime) }
+        { status: response.status, headers: buildNoStoreHeaders() }
       );
     }
 
@@ -343,7 +343,7 @@ export async function GET(request: Request) {
         total_results: payload.total_results || 0,
       };
       return NextResponse.json(apiResponse, {
-        headers: buildCacheHeaders(cacheTime),
+        headers: buildNoStoreHeaders(),
       });
     }
 
@@ -357,12 +357,12 @@ export async function GET(request: Request) {
       total_results: payload.total_results || 0,
     };
     return NextResponse.json(apiResponse, {
-      headers: buildCacheHeaders(cacheTime),
+      headers: buildNoStoreHeaders(),
     });
   } catch {
     return NextResponse.json(
       { error: 'tmdb discover request failed', ...emptyResponse() },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   } finally {
     clearTimeout(timeoutId);

@@ -4,10 +4,7 @@ export const runtime = 'edge';
 
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
-const DETAIL_CACHE_SECONDS = 600;
 const DETAIL_REQUEST_TIMEOUT_MS = 10000;
-const DETAIL_CACHE_MAX_ENTRIES = 300;
-const DETAIL_CACHE_VERSION = 'v7';
 
 type TmdbMediaType = 'movie' | 'tv';
 type LogoLanguagePreference = 'zh' | 'en';
@@ -165,19 +162,6 @@ interface TmdbDetailResponse {
   trailerUrl: string;
 }
 
-interface TmdbDetailCacheEntry {
-  expiresAt: number;
-  payload: TmdbDetailResponse;
-}
-
-const globalWithTmdbDetailCache = globalThis as typeof globalThis & {
-  __tmdbDetailCache?: Map<string, TmdbDetailCacheEntry>;
-};
-
-const tmdbDetailCache =
-  globalWithTmdbDetailCache.__tmdbDetailCache ||
-  (globalWithTmdbDetailCache.__tmdbDetailCache = new Map());
-
 function normalizeMediaType(value: string | null): TmdbMediaType {
   return value === 'tv' || value === 'show' ? 'tv' : 'movie';
 }
@@ -191,10 +175,6 @@ function normalizeLogoLanguagePreference(
 function normalizeYear(value: string | null): string {
   const year = (value || '').trim();
   return /^\d{4}$/.test(year) ? year : '';
-}
-
-function normalizeTitleForCache(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 const TITLE_QUOTE_PUNCTUATION_PATTERN = /[\u2018\u2019\u201c\u201d'"`]/g;
@@ -573,35 +553,14 @@ function selectBestLogo(
   };
 }
 
-function buildCacheHeaders(): HeadersInit {
+function buildNoStoreHeaders(): HeadersInit {
   return {
-    'Cache-Control': `public, max-age=${DETAIL_CACHE_SECONDS}, s-maxage=${DETAIL_CACHE_SECONDS}, stale-while-revalidate=60`,
-    'CDN-Cache-Control': `public, s-maxage=${DETAIL_CACHE_SECONDS}, stale-while-revalidate=60`,
-    'Vercel-CDN-Cache-Control': `public, s-maxage=${DETAIL_CACHE_SECONDS}, stale-while-revalidate=60`,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
   };
-}
-
-function readDetailCache(key: string): TmdbDetailResponse | null {
-  const hit = tmdbDetailCache.get(key);
-  if (!hit) return null;
-  if (hit.expiresAt <= Date.now()) {
-    tmdbDetailCache.delete(key);
-    return null;
-  }
-  return hit.payload;
-}
-
-function writeDetailCache(key: string, payload: TmdbDetailResponse): void {
-  tmdbDetailCache.set(key, {
-    payload,
-    expiresAt: Date.now() + DETAIL_CACHE_SECONDS * 1000,
-  });
-
-  if (tmdbDetailCache.size <= DETAIL_CACHE_MAX_ENTRIES) return;
-  const oldestKey = tmdbDetailCache.keys().next().value;
-  if (oldestKey) {
-    tmdbDetailCache.delete(oldestKey);
-  }
 }
 
 async function resolveTmdbTargetFromTitle(
@@ -921,7 +880,7 @@ export async function GET(request: Request) {
   if (!hasValidId && !title) {
     return NextResponse.json(
       { error: 'missing id or title parameter' },
-      { status: 400 }
+      { status: 400, headers: buildNoStoreHeaders() }
     );
   }
 
@@ -930,18 +889,10 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
   if (!apiKey) {
-    return NextResponse.json({ error: 'tmdb api key missing' }, { status: 500 });
-  }
-
-  const cacheKey = hasValidId
-    ? `id:${DETAIL_CACHE_VERSION}:${mediaType}:${logoLanguagePreference}:${rawId}`
-    : `title:${DETAIL_CACHE_VERSION}:${mediaType}:${logoLanguagePreference}:${normalizeTitleForCache(
-        title
-      )}:${year}`;
-
-  const cacheHit = readDetailCache(cacheKey);
-  if (cacheHit) {
-    return NextResponse.json(cacheHit, { headers: buildCacheHeaders() });
+    return NextResponse.json(
+      { error: 'tmdb api key missing' },
+      { status: 500, headers: buildNoStoreHeaders() }
+    );
   }
 
   const controller = new AbortController();
@@ -962,7 +913,7 @@ export async function GET(request: Request) {
       if (!resolved) {
         return NextResponse.json(
           { error: 'tmdb detail not found' },
-          { status: 404 }
+          { status: 404, headers: buildNoStoreHeaders() }
         );
       }
       resolvedId = resolved.id;
@@ -980,7 +931,7 @@ export async function GET(request: Request) {
     if (!rawDetail) {
       return NextResponse.json(
         { error: 'tmdb detail request failed' },
-        { status: 502 }
+        { status: 502, headers: buildNoStoreHeaders() }
       );
     }
 
@@ -995,7 +946,7 @@ export async function GET(request: Request) {
       if (similarity < minSimilarity) {
         return NextResponse.json(
           { error: 'tmdb detail not found' },
-          { status: 404 }
+          { status: 404, headers: buildNoStoreHeaders() }
         );
       }
     }
@@ -1010,17 +961,11 @@ export async function GET(request: Request) {
       fallbackScore,
     });
 
-    writeDetailCache(cacheKey, payload);
-    writeDetailCache(
-      `id:${DETAIL_CACHE_VERSION}:${resolvedMediaType}:${logoLanguagePreference}:${resolvedId}`,
-      payload
-    );
-
-    return NextResponse.json(payload, { headers: buildCacheHeaders() });
+    return NextResponse.json(payload, { headers: buildNoStoreHeaders() });
   } catch {
     return NextResponse.json(
       { error: 'tmdb detail request failed' },
-      { status: 500 }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   } finally {
     clearTimeout(timeoutId);

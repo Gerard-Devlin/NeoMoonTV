@@ -3,9 +3,18 @@
 import { ChevronLeft, ChevronRight, Play, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { type PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
+
+import matrixStyles from '@/app/loading.module.css';
 
 import {
   buildCuratedCategoryQuery,
@@ -20,6 +29,8 @@ type TmdbMediaType = 'movie' | 'tv';
 type LogoLanguagePreference = 'zh' | 'en';
 type LogoAspectType = 'ultraWide' | 'wide' | 'standard' | 'squareish' | 'tall';
 const TOP_RATED_DISPLAY_COUNT = 9;
+const MATRIX_PATTERN_COUNT = 5;
+const MATRIX_COLUMN_COUNT = 40;
 
 interface RankedDiscoverItem {
   id: string;
@@ -50,6 +61,10 @@ interface RankedSectionProps {
   items: RankedDiscoverItem[];
   loading: boolean;
   onOpenDetail: (item: RankedDiscoverItem, mediaType: TmdbMediaType) => void;
+  onNavigateWithMatrixLoading: (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => void;
 }
 
 interface ActiveRankedItem {
@@ -348,26 +363,52 @@ function RankedSection({
   items,
   loading,
   onOpenDetail,
+  onNavigateWithMatrixLoading,
 }: RankedSectionProps) {
   const desktopScrollRef = useRef<HTMLDivElement | null>(null);
+  const desktopScrollFrameRef = useRef<number | null>(null);
+  const showLeftScrollRef = useRef(false);
+  const showRightScrollRef = useRef(false);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
   const [desktopHovered, setDesktopHovered] = useState(false);
 
-  const checkDesktopScroll = useCallback(() => {
+  const measureDesktopScroll = useCallback(() => {
     const node = desktopScrollRef.current;
     if (!node) return;
     const { scrollWidth, clientWidth, scrollLeft } = node;
     const threshold = 1;
-    setShowRightScroll(scrollWidth - (scrollLeft + clientWidth) > threshold);
-    setShowLeftScroll(scrollLeft > threshold);
+    const nextRight = scrollWidth - (scrollLeft + clientWidth) > threshold;
+    const nextLeft = scrollLeft > threshold;
+
+    if (showRightScrollRef.current !== nextRight) {
+      showRightScrollRef.current = nextRight;
+      setShowRightScroll(nextRight);
+    }
+
+    if (showLeftScrollRef.current !== nextLeft) {
+      showLeftScrollRef.current = nextLeft;
+      setShowLeftScroll(nextLeft);
+    }
   }, []);
+
+  const checkDesktopScroll = useCallback(() => {
+    if (desktopScrollFrameRef.current !== null) return;
+    desktopScrollFrameRef.current = window.requestAnimationFrame(() => {
+      desktopScrollFrameRef.current = null;
+      measureDesktopScroll();
+    });
+  }, [measureDesktopScroll]);
 
   useEffect(() => {
     checkDesktopScroll();
     window.addEventListener('resize', checkDesktopScroll);
     return () => {
       window.removeEventListener('resize', checkDesktopScroll);
+      if (desktopScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(desktopScrollFrameRef.current);
+        desktopScrollFrameRef.current = null;
+      }
     };
   }, [checkDesktopScroll, items, loading]);
 
@@ -391,6 +432,7 @@ function RankedSection({
         <h2 className='text-xl font-bold text-gray-900 dark:text-zinc-100'>{title}</h2>
         <Link
           href={href}
+          onClick={(event) => onNavigateWithMatrixLoading(event, href)}
           className='group inline-flex items-center gap-1 rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:border-sky-500/60 dark:hover:bg-sky-500/15 dark:hover:text-sky-300'
         >
           <span>{'\u67e5\u770b\u5168\u90e8'}</span>
@@ -517,7 +559,10 @@ interface TopRatedRankedRowsProps {
 }
 
 export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProps) {
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
   const [movieItems, setMovieItems] = useState<RankedDiscoverItem[]>([]);
   const [tvItems, setTvItems] = useState<RankedDiscoverItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -532,8 +577,54 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
     year: '',
     seasonCount: 0,
   });
+  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
   const detailCacheRef = useRef<Map<string, TmdbDetailResponse>>(new Map());
   const detailRequestIdRef = useRef(0);
+
+  const handleNavigateWithMatrixLoading = useCallback(
+    (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
+      if (event.defaultPrevented) return;
+      if (
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const currentFullPath = searchParamString
+        ? `${pathname}?${searchParamString}`
+        : pathname;
+      if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) {
+        return;
+      }
+
+      event.preventDefault();
+      setShowMatrixLoading(true);
+
+      // Ensure the matrix overlay paints before route change starts.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          router.push(href);
+        });
+      });
+    },
+    [pathname, router, searchParamString]
+  );
+
+  useEffect(() => {
+    if (!showMatrixLoading) return;
+    const timer = window.setTimeout(() => {
+      setShowMatrixLoading(false);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [showMatrixLoading]);
+
+  useEffect(() => {
+    setShowMatrixLoading(false);
+  }, [pathname, searchParamString]);
 
   const cacheKey = useCallback(
     (
@@ -878,6 +969,22 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
 
   return (
     <>
+      {showMatrixLoading ? (
+        <div className='fixed inset-0 z-[2000]'>
+          <div className={matrixStyles['matrix-container']}>
+            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
+              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
+                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
+                  (__unused, columnIndex) => (
+                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className={`mb-2 ${className || ''}`}>
         <RankedSection
           title={MOVIE_TOP_RATED_CONFIG.title}
@@ -886,6 +993,7 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
           items={movieItems}
           loading={loading}
           onOpenDetail={handleOpenDetail}
+          onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
         />
         <RankedSection
           title={TV_TOP_RATED_CONFIG.title}
@@ -894,6 +1002,7 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
           items={tvItems}
           loading={loading}
           onOpenDetail={handleOpenDetail}
+          onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
         />
       </div>
 

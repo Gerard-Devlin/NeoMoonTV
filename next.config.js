@@ -67,11 +67,23 @@ const nextConfig = {
   },
 };
 
+const defaultRuntimeCaching = require('next-pwa/cache');
+const runtimeCaching = [
+  {
+    urlPattern: ({ url }) =>
+      self.origin === url.origin && url.pathname.startsWith('/api/tmdb/'),
+    handler: 'NetworkOnly',
+    method: 'GET',
+  },
+  ...defaultRuntimeCaching,
+];
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
+  runtimeCaching,
 });
 
 module.exports = withPWA(nextConfig);

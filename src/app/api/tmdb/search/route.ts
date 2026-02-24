@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { getCacheTime } from '@/lib/config';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'edge';
@@ -85,11 +84,13 @@ interface SearchTmdbResponse {
   people: SearchPersonResult[];
 }
 
-function buildCacheHeaders(cacheTime: number): Record<string, string> {
+function buildNoStoreHeaders(): Record<string, string> {
   return {
-    'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-    'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-    'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
   };
 }
 
@@ -300,11 +301,10 @@ function emptySearchResponse(): SearchTmdbResponse {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = normalizeText(searchParams.get('q') || '');
-  const cacheTime = await getCacheTime();
 
   if (!query) {
     return NextResponse.json(emptySearchResponse(), {
-      headers: buildCacheHeaders(cacheTime),
+      headers: buildNoStoreHeaders(),
     });
   }
 
@@ -315,7 +315,7 @@ export async function GET(request: Request) {
   if (!apiKey) {
     return NextResponse.json(
       { error: 'tmdb api key missing', ...emptySearchResponse() },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   }
 
@@ -350,11 +350,11 @@ export async function GET(request: Request) {
       people: mapPeopleResults(peopleRawList),
     };
 
-    return NextResponse.json(response, { headers: buildCacheHeaders(cacheTime) });
+    return NextResponse.json(response, { headers: buildNoStoreHeaders() });
   } catch {
     return NextResponse.json(
       { error: 'tmdb search failed', ...emptySearchResponse() },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   } finally {
     clearTimeout(timeoutId);

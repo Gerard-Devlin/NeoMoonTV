@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 
-import { getCacheTime } from '@/lib/config';
-
 export const runtime = 'edge';
 
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
@@ -74,11 +72,13 @@ interface PersonDetailPayload {
   credits: PersonCredit[];
 }
 
-function buildCacheHeaders(cacheTime: number): Record<string, string> {
+function buildNoStoreHeaders(): Record<string, string> {
   return {
-    'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-    'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-    'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
   };
 }
 
@@ -179,14 +179,13 @@ export async function GET(
   _request: Request,
   context: { params: { id: string } }
 ) {
-  const cacheTime = await getCacheTime();
   const rawId = Number(context.params.id);
   const id = Number.isInteger(rawId) && rawId > 0 ? rawId : 0;
 
   if (!id) {
     return NextResponse.json(
       { error: 'invalid person id' },
-      { status: 400, headers: buildCacheHeaders(cacheTime) }
+      { status: 400, headers: buildNoStoreHeaders() }
     );
   }
 
@@ -197,7 +196,7 @@ export async function GET(
   if (!apiKey) {
     return NextResponse.json(
       { error: 'tmdb api key missing' },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   }
 
@@ -218,7 +217,7 @@ export async function GET(
     if (!response.ok) {
       return NextResponse.json(
         { error: 'tmdb person request failed' },
-        { status: response.status, headers: buildCacheHeaders(cacheTime) }
+        { status: response.status, headers: buildNoStoreHeaders() }
       );
     }
 
@@ -227,7 +226,7 @@ export async function GET(
     if (!name) {
       return NextResponse.json(
         { error: 'person not found' },
-        { status: 404, headers: buildCacheHeaders(cacheTime) }
+        { status: 404, headers: buildNoStoreHeaders() }
       );
     }
 
@@ -247,12 +246,12 @@ export async function GET(
     };
 
     return NextResponse.json(payload, {
-      headers: buildCacheHeaders(cacheTime),
+      headers: buildNoStoreHeaders(),
     });
   } catch {
     return NextResponse.json(
       { error: 'tmdb person request failed' },
-      { status: 500, headers: buildCacheHeaders(cacheTime) }
+      { status: 500, headers: buildNoStoreHeaders() }
     );
   } finally {
     clearTimeout(timeoutId);

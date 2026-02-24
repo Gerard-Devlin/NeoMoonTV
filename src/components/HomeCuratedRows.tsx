@@ -2,7 +2,16 @@
 
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+
+import matrixStyles from '@/app/loading.module.css';
 
 import {
   buildCuratedCategoryQuery,
@@ -28,12 +37,21 @@ interface DiscoverApiResponse {
 }
 
 const LOAD_BATCH_SIZE = 2;
+const MATRIX_PATTERN_COUNT = 5;
+const MATRIX_COLUMN_COUNT = 40;
 
 interface CuratedRowSectionProps {
   row: CuratedCategoryConfig;
+  onNavigateWithMatrixLoading: (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => void;
 }
 
-function CuratedRowSection({ row }: CuratedRowSectionProps) {
+function CuratedRowSection({
+  row,
+  onNavigateWithMatrixLoading,
+}: CuratedRowSectionProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<CuratedDiscoverItem[]>([]);
@@ -116,6 +134,9 @@ function CuratedRowSection({ row }: CuratedRowSectionProps) {
         </h2>
         <Link
           href={`/curated/${row.slug}`}
+          onClick={(event) =>
+            onNavigateWithMatrixLoading(event, `/curated/${row.slug}`)
+          }
           className='group inline-flex items-center gap-1 rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:border-sky-500/60 dark:hover:bg-sky-500/15 dark:hover:text-sky-300'
         >
           <span>{'\u67e5\u770b\u5168\u90e8'}</span>
@@ -130,10 +151,8 @@ function CuratedRowSection({ row }: CuratedRowSectionProps) {
                 key={`${row.slug}-skeleton-${index}`}
                 className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
               >
-                <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
-                  <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
-                </div>
-                <div className='mt-2 h-4 rounded bg-gray-200 animate-pulse dark:bg-gray-800'></div>
+                <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
+                <div className='mt-2 h-4 rounded bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
               </div>
             ))
           : items.map((item, index) => (
@@ -163,9 +182,60 @@ function CuratedRowSection({ row }: CuratedRowSectionProps) {
 }
 
 export default function HomeCuratedRows() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
+
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(LOAD_BATCH_SIZE);
   const [loadingMoreRows, setLoadingMoreRows] = useState(false);
+  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
+
+  const handleNavigateWithMatrixLoading = useCallback(
+    (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
+      if (event.defaultPrevented) return;
+      if (
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const currentFullPath = searchParamString
+        ? `${pathname}?${searchParamString}`
+        : pathname;
+      if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) {
+        return;
+      }
+
+      event.preventDefault();
+      setShowMatrixLoading(true);
+
+      // Ensure the matrix overlay paints before route change starts.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          router.push(href);
+        });
+      });
+    },
+    [pathname, router, searchParamString]
+  );
+
+  useEffect(() => {
+    if (!showMatrixLoading) return;
+    const timer = window.setTimeout(() => {
+      setShowMatrixLoading(false);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [showMatrixLoading]);
+
+  useEffect(() => {
+    setShowMatrixLoading(false);
+  }, [pathname, searchParamString]);
 
   useEffect(() => {
     if (
@@ -209,26 +279,48 @@ export default function HomeCuratedRows() {
   const hasMoreRows = visibleCount < HOME_CURATED_CATEGORY_CONFIGS.length;
 
   return (
-    <div className='mb-4'>
-      {HOME_CURATED_CATEGORY_CONFIGS.slice(0, visibleCount).map((row) => (
-        <CuratedRowSection key={row.slug} row={row} />
-      ))}
-
-      {hasMoreRows ? (
-        <div
-          ref={loadMoreTriggerRef}
-          className='flex h-16 items-center justify-center'
-        >
-          {loadingMoreRows ? (
-            <div className='inline-flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400'>
-              <span className='h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-sky-500 dark:border-zinc-600 dark:border-t-sky-400' />
-              {'\u52a0\u8f7d\u4e2d...'}
-            </div>
-          ) : (
-            <span className='h-5 w-5 rounded-full border border-transparent' />
-          )}
+    <>
+      {showMatrixLoading ? (
+        <div className='fixed inset-0 z-[2000]'>
+          <div className={matrixStyles['matrix-container']}>
+            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
+              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
+                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
+                  (__unused, columnIndex) => (
+                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
+                  )
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
-    </div>
+
+      <div className='mb-4'>
+        {HOME_CURATED_CATEGORY_CONFIGS.slice(0, visibleCount).map((row) => (
+          <CuratedRowSection
+            key={row.slug}
+            row={row}
+            onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
+          />
+        ))}
+
+        {hasMoreRows ? (
+          <div
+            ref={loadMoreTriggerRef}
+            className='flex h-16 items-center justify-center'
+          >
+            {loadingMoreRows ? (
+              <div className='inline-flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400'>
+                <span className='h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-sky-500 dark:border-zinc-600 dark:border-t-sky-400' />
+                {'\u52a0\u8f7d\u4e2d...'}
+              </div>
+            ) : (
+              <span className='h-5 w-5 rounded-full border border-transparent' />
+            )}
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }
