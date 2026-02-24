@@ -1406,7 +1406,7 @@ function MyPageClient() {
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-play-skeleton-${index}`}
-                        className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
+                        className='skeleton-card-surface relative aspect-[2/3] overflow-hidden animate-pulse'
                       />
                     ))}
                   </div>
@@ -1557,7 +1557,7 @@ function MyPageClient() {
                     {Array.from({ length: 8 }).map((_, index) => (
                       <div
                         key={`my-favorite-skeleton-${index}`}
-                        className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
+                        className='skeleton-card-surface relative aspect-[2/3] overflow-hidden animate-pulse'
                       />
                     ))}
                   </div>

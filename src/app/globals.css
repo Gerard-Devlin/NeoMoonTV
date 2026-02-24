@@ -11,6 +11,14 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none; /* Chrome, Safari and Opera */
   }
+
+  .skeleton-surface {
+    @apply bg-gray-200/80 dark:bg-zinc-800/80;
+  }
+
+  .skeleton-card-surface {
+    @apply skeleton-surface rounded-[22px];
+  }
 }
 
 :root {

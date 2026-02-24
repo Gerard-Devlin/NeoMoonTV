@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   type MouseEvent as ReactMouseEvent,
   createContext,
@@ -25,7 +25,8 @@ import {
   useState,
 } from 'react';
 
-import matrixStyles from '@/app/loading.module.css';
+import MatrixLoadingOverlay from '@/components/MatrixLoadingOverlay';
+import { useMatrixRouteTransition } from '@/hooks/useMatrixRouteTransition';
 
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -36,9 +37,6 @@ const SidebarContext = createContext<SidebarContextType>({
 });
 
 export const useSidebar = () => useContext(SidebarContext);
-
-const MATRIX_PATTERN_COUNT = 5;
-const MATRIX_COLUMN_COUNT = 40;
 
 interface LogoProps {
   onNavigate?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
@@ -76,10 +74,10 @@ declare global {
 }
 
 const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
+  const { showMatrixLoading, navigateLinkWithMatrixLoading } =
+    useMatrixRouteTransition();
   // 若同一次 SPA 会话中已经读取过折叠状态，则直接复用，避免闪烁
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (
@@ -139,48 +137,6 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     onToggle?.(newState);
   }, [isCollapsed, onToggle]);
 
-  const handleNavigateWithMatrixLoading = useCallback(
-    (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      ) {
-        return;
-      }
-
-      const queryString = searchParams.toString();
-      const currentFullPath = queryString ? `${pathname}?${queryString}` : pathname;
-      if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) return;
-
-      event.preventDefault();
-      setShowMatrixLoading(true);
-
-      // Ensure the matrix overlay paints before route change starts.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          router.push(href);
-        });
-      });
-    },
-    [pathname, router, searchParams]
-  );
-
-  useEffect(() => {
-    if (!showMatrixLoading) return;
-    const timer = window.setTimeout(() => {
-      setShowMatrixLoading(false);
-    }, 10000);
-    return () => window.clearTimeout(timer);
-  }, [showMatrixLoading]);
-
-  useEffect(() => {
-    setShowMatrixLoading(false);
-  }, [pathname, searchParams]);
-
   const contextValue = {
     isCollapsed,
   };
@@ -219,21 +175,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
 
   return (
     <SidebarContext.Provider value={contextValue}>
-      {showMatrixLoading ? (
-        <div className='fixed inset-0 z-[2000]'>
-          <div className={matrixStyles['matrix-container']}>
-            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
-              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
-                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
-                  (__unused, columnIndex) => (
-                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
-                  )
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <MatrixLoadingOverlay visible={showMatrixLoading} />
       {/* 在移动端隐藏侧边栏 */}
       <div className='hidden md:flex'>
         <aside
@@ -259,7 +201,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                     <Logo
                       onNavigate={(event) => {
                         setActive('/');
-                        handleNavigateWithMatrixLoading(event, '/');
+                        navigateLinkWithMatrixLoading(event, '/');
                       }}
                     />
                   )}
@@ -281,7 +223,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 href='/'
                 onClick={(event) => {
                   setActive('/');
-                  handleNavigateWithMatrixLoading(event, '/');
+                  navigateLinkWithMatrixLoading(event, '/');
                 }}
                 data-active={active === '/'}
                 className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-blue-600 data-[active=true]:bg-blue-500/20 data-[active=true]:text-blue-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-blue-400 dark:data-[active=true]:bg-blue-500/10 dark:data-[active=true]:text-blue-400 ${
@@ -301,7 +243,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 href='/search'
                 onClick={(event) => {
                   setActive('/search');
-                  handleNavigateWithMatrixLoading(event, '/search');
+                  navigateLinkWithMatrixLoading(event, '/search');
                 }}
                 data-active={active === '/search'}
                 className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-blue-600 data-[active=true]:bg-blue-500/20 data-[active=true]:text-blue-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-blue-400 dark:data-[active=true]:bg-blue-500/10 dark:data-[active=true]:text-blue-400 ${
@@ -321,7 +263,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 href='/my'
                 onClick={(event) => {
                   setActive('/my');
-                  handleNavigateWithMatrixLoading(event, '/my');
+                  navigateLinkWithMatrixLoading(event, '/my');
                 }}
                 data-active={active === '/my'}
                 className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-blue-600 data-[active=true]:bg-blue-500/20 data-[active=true]:text-blue-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-blue-400 dark:data-[active=true]:bg-blue-500/10 dark:data-[active=true]:text-blue-400 ${
@@ -364,7 +306,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                       href={item.href}
                       onClick={(event) => {
                         setActive(item.href);
-                        handleNavigateWithMatrixLoading(event, item.href);
+                        navigateLinkWithMatrixLoading(event, item.href);
                       }}
                       data-active={isActive}
                       className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-sm text-gray-700 hover:bg-gray-100/30 hover:text-blue-600 data-[active=true]:bg-blue-500/20 data-[active=true]:text-blue-700 transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-blue-400 dark:data-[active=true]:bg-blue-500/10 dark:data-[active=true]:text-blue-400 ${

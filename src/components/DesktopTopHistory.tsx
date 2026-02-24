@@ -13,6 +13,7 @@ import {
 } from '@/lib/db.client';
 import { processImageUrl } from '@/lib/utils';
 
+import MatrixLoadingOverlay from '@/components/MatrixLoadingOverlay';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useMatrixRouteTransition } from '@/hooks/useMatrixRouteTransition';
 
 interface PlayHistoryItem extends PlayRecord {
   key: string;
@@ -114,6 +116,8 @@ function buildPlayUrl(record: PlayHistoryItem): string {
 
 export default function DesktopTopHistory() {
   const router = useRouter();
+  const { showMatrixLoading, navigateWithMatrixLoading } =
+    useMatrixRouteTransition();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -209,8 +213,21 @@ export default function DesktopTopHistory() {
     }
   }, [deleteTarget]);
 
+  const handleNavigateWithMatrixLoading = useCallback(
+    (href: string) => {
+      navigateWithMatrixLoading(href, {
+        onBeforeNavigate: () => {
+          setOpen(false);
+        },
+      });
+    },
+    [navigateWithMatrixLoading]
+  );
+
   return (
     <div ref={rootRef} className='relative m-0'>
+      <MatrixLoadingOverlay visible={showMatrixLoading} />
+
       <button
         type='button'
         onClick={() => setOpen((prev) => !prev)}
@@ -229,10 +246,7 @@ export default function DesktopTopHistory() {
             </div>
             <button
               type='button'
-              onClick={() => {
-                setOpen(false);
-                router.push('/my');
-              }}
+              onClick={() => handleNavigateWithMatrixLoading('/my')}
               className='text-xs text-zinc-300 transition-colors hover:text-white'
             >
               查看全部

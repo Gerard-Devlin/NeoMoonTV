@@ -13,19 +13,20 @@ import {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 
 import {
   addSearchHistory,
   getSearchHistory,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { fetchTmdbDetailWithClientCache } from '@/lib/tmdb-detail.client';
 import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 import { yellowWords } from '@/lib/yellow';
 
 import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
+import SeasonPickerModal from '@/components/SeasonPickerModal';
 import TmdbDetailModal, {
   type TmdbDetailMediaType,
   type TmdbDetailModalData,
@@ -85,6 +86,10 @@ function getMediaType(item: SearchResult): TmdbDetailMediaType {
 function normalizeYear(value?: string): string {
   const year = (value || '').trim();
   return /^\d{4}$/.test(year) ? year : '';
+}
+
+function normalizeKeyword(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
 }
 
 function hasSeasonHint(value: string): boolean {
@@ -331,27 +336,6 @@ function SearchPageClient() {
   }, [detailOpen]);
 
   useEffect(() => {
-    if (!seasonPickerOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setSeasonPickerOpen(false);
-        setSeasonPickerData({
-          baseTitle: '',
-          year: '',
-          seasonCount: 0,
-          logo: '',
-          backdrop: '',
-        });
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [seasonPickerOpen]);
-
-  useEffect(() => {
     if (!suggestionOpen || !trimmedSearchQuery) {
       if (!trimmedSearchQuery) {
         setSuggestionResults([]);
@@ -511,24 +495,18 @@ function SearchPageClient() {
       return;
     }
 
-    const params = new URLSearchParams({
-      title: result.title,
-      type: mediaType,
-    });
-    if (year) params.set('year', year);
-    if (result.poster) params.set('poster', result.poster);
-
     const requestId = ++detailRequestIdRef.current;
     setDetailLoading(true);
     setDetailError(null);
     setDetailData(null);
 
     try {
-      const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('TMDB detail request failed');
-      }
-      const payload = (await response.json()) as TmdbTopSearchDetail;
+      const payload = await fetchTmdbDetailWithClientCache<TmdbTopSearchDetail>({
+        title: result.title,
+        mediaType,
+        year,
+        poster: result.poster,
+      });
       if (detailRequestIdRef.current !== requestId) return;
       detailCacheRef.current[cacheKey] = payload;
       setDetailData(payload);
@@ -544,12 +522,16 @@ function SearchPageClient() {
 
   const handleOpenDetail = useCallback(
     (result: SearchResult) => {
+      const normalizedKeyword = normalizeKeyword(searchQuery);
+      if (normalizedKeyword) {
+        void addSearchHistory(normalizedKeyword);
+      }
       setActiveResult(result);
       setSuggestionOpen(false);
       setDetailOpen(true);
       void loadDetailForResult(result);
     },
-    [loadDetailForResult]
+    [loadDetailForResult, searchQuery]
   );
 
   const handleRetryDetail = useCallback(() => {
@@ -580,19 +562,15 @@ function SearchPageClient() {
       const trimmedTitle = (title || '').trim();
       if (!trimmedTitle) return 0;
 
-      const params = new URLSearchParams({
-        title: trimmedTitle,
-        mediaType: 'tv',
-      });
-      if (year) params.set('year', year);
-
       try {
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (!response.ok) return 0;
-        const payload = (await response.json()) as {
+        const payload = await fetchTmdbDetailWithClientCache<{
           mediaType?: 'movie' | 'tv';
           seasons?: number | null;
-        };
+        }>({
+          title: trimmedTitle,
+          mediaType: 'tv',
+          year,
+        });
         if (payload.mediaType !== 'tv') return 0;
         if (typeof payload.seasons !== 'number' || payload.seasons <= 1)
           return 0;
@@ -614,14 +592,6 @@ function SearchPageClient() {
       backdrop: '',
     });
   }, []);
-
-  const handleSeasonPickerBackdropPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      handleCloseSeasonPicker();
-    },
-    [handleCloseSeasonPicker]
-  );
 
   const handleSeasonPick = useCallback(
     (season: number) => {
@@ -1066,89 +1036,15 @@ function SearchPageClient() {
           }}
         />
 
-        {seasonPickerOpen && typeof document !== 'undefined'
-          ? createPortal(
-              <div
-                className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-                onPointerDown={handleSeasonPickerBackdropPointerDown}
-              >
-                <div
-                  role='dialog'
-                  aria-modal='false'
-                  aria-label='请选择要播放的季数'
-                  className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-                  onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <div className='absolute inset-0'>
-                    {seasonPickerData.backdrop ? (
-                      <img
-                        src={processImageUrl(seasonPickerData.backdrop)}
-                        alt={seasonPickerData.baseTitle}
-                        className='h-full w-full object-cover opacity-30'
-                      />
-                    ) : null}
-                    <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-                  </div>
-
-                  <div className='relative p-6'>
-                    <button
-                      type='button'
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleCloseSeasonPicker();
-                      }}
-                      className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
-                      aria-label='关闭选季弹窗'
-                    >
-                      <X className='h-4 w-4' />
-                    </button>
-
-                    <div className='space-y-2 text-center sm:text-left'>
-                      <h3 className='text-lg font-semibold sm:pr-10'>
-                        请选择要播放的季数
-                      </h3>
-                      {seasonPickerData.logo ? (
-                        <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
-                          <img
-                            src={processImageUrl(seasonPickerData.logo)}
-                            alt={`${seasonPickerData.baseTitle} logo`}
-                            className='h-full w-full object-contain object-center drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)] sm:object-left'
-                          />
-                        </div>
-                      ) : (
-                        <p className='text-sm text-zinc-300/90'>
-                          {seasonPickerData.baseTitle}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
-                      {Array.from(
-                        { length: Math.max(1, seasonPickerData.seasonCount) },
-                        (_, idx) => idx + 1
-                      ).map((season) => (
-                        <button
-                          key={`search-season-pick-${season}`}
-                          type='button'
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleSeasonPick(season);
-                          }}
-                          className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
-                        >
-                          {`第${season}季`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )
-          : null}
+        <SeasonPickerModal
+          open={seasonPickerOpen}
+          title={seasonPickerData.baseTitle}
+          logo={seasonPickerData.logo}
+          backdrop={seasonPickerData.backdrop}
+          seasonCount={seasonPickerData.seasonCount}
+          onClose={handleCloseSeasonPicker}
+          onPickSeason={handleSeasonPick}
+        />
       </div>
     </div>
   );
@@ -1161,3 +1057,4 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+

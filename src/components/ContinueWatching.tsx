@@ -2,7 +2,6 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { PlayRecord } from '@/lib/db.client';
@@ -11,7 +10,9 @@ import {
   getAllPlayRecords,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { useMatrixRouteTransition } from '@/hooks/useMatrixRouteTransition';
 
+import MatrixLoadingOverlay from '@/components/MatrixLoadingOverlay';
 import ScrollableRow from '@/components/ScrollableRow';
 import {
   AlertDialog,
@@ -32,7 +33,8 @@ interface ContinueWatchingProps {
 const LONG_PRESS_DURATION_MS = 420;
 
 export default function ContinueWatching({ className }: ContinueWatchingProps) {
-  const router = useRouter();
+  const { showMatrixLoading, navigateWithMatrixLoading } =
+    useMatrixRouteTransition();
   const [playRecords, setPlayRecords] = useState<
     (PlayRecord & { key: string })[]
   >([]);
@@ -183,7 +185,9 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
   }
 
   return (
-    <section className={`mb-8 ${className || ''}`}>
+    <>
+      <MatrixLoadingOverlay visible={showMatrixLoading} />
+      <section className={`mb-8 ${className || ''}`}>
       <div className='mb-4 flex items-center justify-between'>
         <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
           继续观看
@@ -213,7 +217,9 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
           ) : (
             <button
               type='button'
-              onClick={() => router.push('/my')}
+              onClick={() => {
+                navigateWithMatrixLoading('/my');
+              }}
               className='group inline-flex items-center gap-1 rounded-full border border-zinc-300/70 bg-white/70 px-3 py-1.5 text-sm font-semibold text-zinc-600 transition hover:border-sky-300 hover:bg-sky-500/10 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300 dark:hover:border-sky-500/60 dark:hover:bg-sky-500/15 dark:hover:text-sky-300'
             >
               <span>查看全部</span>
@@ -225,15 +231,15 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
       <ScrollableRow>
         {loading
           ? Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
-              >
-                <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
-                <div className='mt-2 h-4 rounded bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
-                <div className='mt-1 h-3 rounded bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
-              </div>
-            ))
+                <div
+                  key={index}
+                  className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
+                >
+                  <div className='skeleton-card-surface relative aspect-[2/3] w-full overflow-hidden animate-pulse'></div>
+                  <div className='skeleton-surface mt-2 h-4 rounded animate-pulse'></div>
+                  <div className='skeleton-surface mt-1 h-3 rounded animate-pulse'></div>
+                </div>
+              ))
           : playRecords.map((record) => {
               const { source, id } = parseKey(record.key);
               const isSelected = selectedKeys.has(record.key);
@@ -319,6 +325,7 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+      </section>
+    </>
   );
 }

@@ -154,8 +154,8 @@ export default function CuratedPageClient() {
             <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-[18px] sm:gap-y-8'>
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={`curated-loading-${index}`} className='w-full'>
-                  <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
-                  <div className='mt-2 h-4 rounded bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
+                  <div className='skeleton-card-surface relative aspect-[2/3] w-full overflow-hidden animate-pulse'></div>
+                  <div className='skeleton-surface mt-2 h-4 w-24 rounded animate-pulse sm:w-32 mx-auto'></div>
                 </div>
               ))}
             </div>

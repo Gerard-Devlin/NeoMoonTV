@@ -1,36 +1,34 @@
-'use client';
+﻿'use client';
 
-import { ChevronLeft, ChevronRight, Play, Star, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   type MouseEvent as ReactMouseEvent,
-  type PointerEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
-
-import matrixStyles from '@/app/loading.module.css';
 
 import {
   buildCuratedCategoryQuery,
   CuratedCategoryConfig,
   TOP_RATED_CATEGORY_CONFIGS,
 } from '@/lib/curated-categories';
+import { fetchTmdbDetailWithClientCache } from '@/lib/tmdb-detail.client';
 import { processImageUrl } from '@/lib/utils';
 
+import MatrixLoadingOverlay from '@/components/MatrixLoadingOverlay';
+import SeasonPickerModal from '@/components/SeasonPickerModal';
 import TmdbDetailModal, { TmdbDetailModalData } from '@/components/TmdbDetailModal';
+import { useMatrixRouteTransition } from '@/hooks/useMatrixRouteTransition';
 
 type TmdbMediaType = 'movie' | 'tv';
 type LogoLanguagePreference = 'zh' | 'en';
 type LogoAspectType = 'ultraWide' | 'wide' | 'standard' | 'squareish' | 'tall';
 const TOP_RATED_DISPLAY_COUNT = 9;
-const MATRIX_PATTERN_COUNT = 5;
-const MATRIX_COLUMN_COUNT = 40;
 
 interface RankedDiscoverItem {
   id: string;
@@ -216,25 +214,12 @@ async function fetchTmdbDetailById(
     logoLanguagePreference?: LogoLanguagePreference;
   }
 ): Promise<TmdbDetailResponse> {
-  const logoLanguagePreference = options?.logoLanguagePreference || 'zh';
-  const params = new URLSearchParams({
+  return fetchTmdbDetailWithClientCache<TmdbDetailResponse>({
     id,
-    type: mediaType,
+    mediaType,
+    logoLanguagePreference: options?.logoLanguagePreference || 'zh',
+    signal: options?.signal,
   });
-  params.set('logoLang', logoLanguagePreference);
-
-  const response = await fetch(`/api/tmdb/detail?${params.toString()}`, {
-    ...(options?.signal ? { signal: options.signal } : {}),
-  });
-  const payload = (await response.json()) as TmdbDetailResponse & {
-    error?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Failed to fetch TMDB detail');
-  }
-
-  return payload;
 }
 
 function RankedCard({
@@ -333,7 +318,7 @@ function LoadingSkeleton() {
                 key={`ranked-loading-desktop-${index}`}
                 className='w-[clamp(320px,31vw,560px)] flex-shrink-0'
               >
-                <div className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80' />
+                <div className='skeleton-surface aspect-[16/9] w-full animate-pulse rounded-[22px]' />
               </div>
             ))}
           </div>
@@ -347,7 +332,7 @@ function LoadingSkeleton() {
               key={`ranked-loading-mobile-${index}`}
               className='w-[86vw] max-w-[560px] flex-shrink-0'
             >
-              <div className='aspect-[16/9] w-full animate-pulse rounded-[22px] bg-gray-200/80 dark:bg-zinc-800/80' />
+              <div className='skeleton-surface aspect-[16/9] w-full animate-pulse rounded-[22px]' />
             </div>
           ))}
         </div>
@@ -559,10 +544,9 @@ interface TopRatedRankedRowsProps {
 }
 
 export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProps) {
-  const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const searchParamString = searchParams.toString();
+  const { showMatrixLoading, navigateLinkWithMatrixLoading } =
+    useMatrixRouteTransition();
   const [movieItems, setMovieItems] = useState<RankedDiscoverItem[]>([]);
   const [tvItems, setTvItems] = useState<RankedDiscoverItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -577,54 +561,8 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
     year: '',
     seasonCount: 0,
   });
-  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
   const detailCacheRef = useRef<Map<string, TmdbDetailResponse>>(new Map());
   const detailRequestIdRef = useRef(0);
-
-  const handleNavigateWithMatrixLoading = useCallback(
-    (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      ) {
-        return;
-      }
-
-      const currentFullPath = searchParamString
-        ? `${pathname}?${searchParamString}`
-        : pathname;
-      if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) {
-        return;
-      }
-
-      event.preventDefault();
-      setShowMatrixLoading(true);
-
-      // Ensure the matrix overlay paints before route change starts.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          router.push(href);
-        });
-      });
-    },
-    [pathname, router, searchParamString]
-  );
-
-  useEffect(() => {
-    if (!showMatrixLoading) return;
-    const timer = window.setTimeout(() => {
-      setShowMatrixLoading(false);
-    }, 10000);
-    return () => window.clearTimeout(timer);
-  }, [showMatrixLoading]);
-
-  useEffect(() => {
-    setShowMatrixLoading(false);
-  }, [pathname, searchParamString]);
 
   const cacheKey = useCallback(
     (
@@ -815,14 +753,6 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
     });
   }, []);
 
-  const handleSeasonPickerBackdropPointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      handleCloseSeasonPicker();
-    },
-    [handleCloseSeasonPicker]
-  );
-
   const resolveSeasonCountForPlay = useCallback(
     async (
       title: string,
@@ -847,7 +777,10 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
 
       if (targetId) {
         try {
-          const detail = await fetchTmdbDetailById(targetId, 'tv');
+          const detail = await fetchTmdbDetailWithClientCache<TmdbDetailResponse>({
+            id: targetId,
+            mediaType: 'tv',
+          });
           if (
             typeof detail.seasons === 'number' &&
             Number.isFinite(detail.seasons) &&
@@ -861,17 +794,14 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
       }
 
       try {
-        const params = new URLSearchParams({
+        const detail = await fetchTmdbDetailWithClientCache<{
+          seasons?: number | null;
+        }>({
           title,
-          type: 'tv',
+          mediaType: 'tv',
+          year,
         });
-        if (year) {
-          params.set('year', year);
-        }
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (!response.ok) return 0;
-        const payload = (await response.json()) as { seasons?: number | null };
-        const seasons = payload.seasons;
+        const seasons = detail.seasons;
         if (typeof seasons !== 'number' || !Number.isFinite(seasons) || seasons <= 1) {
           return 0;
         }
@@ -923,19 +853,6 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
   }, [activeItem, detailData, resolveSeasonCountForPlay, router]);
 
   useEffect(() => {
-    if (!seasonPicker.open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleCloseSeasonPicker();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [handleCloseSeasonPicker, seasonPicker.open]);
-
-  useEffect(() => {
     const controller = new AbortController();
 
     const load = async () => {
@@ -969,21 +886,7 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
 
   return (
     <>
-      {showMatrixLoading ? (
-        <div className='fixed inset-0 z-[2000]'>
-          <div className={matrixStyles['matrix-container']}>
-            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
-              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
-                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
-                  (__unused, columnIndex) => (
-                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
-                  )
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <MatrixLoadingOverlay visible={showMatrixLoading} />
 
       <div className={`mb-2 ${className || ''}`}>
         <RankedSection
@@ -993,7 +896,7 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
           items={movieItems}
           loading={loading}
           onOpenDetail={handleOpenDetail}
-          onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
+          onNavigateWithMatrixLoading={navigateLinkWithMatrixLoading}
         />
         <RankedSection
           title={TV_TOP_RATED_CONFIG.title}
@@ -1002,7 +905,7 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
           items={tvItems}
           loading={loading}
           onOpenDetail={handleOpenDetail}
-          onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
+          onNavigateWithMatrixLoading={navigateLinkWithMatrixLoading}
         />
       </div>
 
@@ -1017,92 +920,16 @@ export default function TopRatedRankedRows({ className }: TopRatedRankedRowsProp
         onRetry={activeItem ? handleRetryDetail : undefined}
         playLabel={'\u7acb\u5373\u64ad\u653e'}
       />
-
-      {seasonPicker.open && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-              onPointerDown={handleSeasonPickerBackdropPointerDown}
-            >
-              <div
-                role='dialog'
-                aria-modal='false'
-                aria-label='请选择要播放的季'
-                className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-                onClick={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <div className='absolute inset-0'>
-                  {seasonPicker.backdrop ? (
-                    <Image
-                      src={safeImageUrl(seasonPicker.backdrop)}
-                      alt={seasonPicker.baseTitle}
-                      fill
-                      className='object-cover opacity-30'
-                      unoptimized
-                    />
-                  ) : null}
-                  <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-                </div>
-
-                <div className='relative p-6'>
-                  <button
-                    type='button'
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handleCloseSeasonPicker();
-                    }}
-                    className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
-                    aria-label='关闭选季弹窗'
-                  >
-                    <X size={16} />
-                  </button>
-
-                  <div className='space-y-2 text-center sm:text-left'>
-                    <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
-                    {seasonPicker.logo ? (
-                      <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
-                        <Image
-                          src={safeImageUrl(seasonPicker.logo)}
-                          alt={`${seasonPicker.baseTitle} logo`}
-                          fill
-                          className='object-contain object-center sm:object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
-                          unoptimized
-                        />
-                      </div>
-                    ) : (
-                      <p className='text-sm text-zinc-300/90'>
-                        {seasonPicker.baseTitle}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
-                    {Array.from(
-                      { length: Math.max(1, seasonPicker.seasonCount) },
-                      (_, idx) => idx + 1
-                    ).map((season) => (
-                      <button
-                        key={`top-rated-season-pick-${season}`}
-                        type='button'
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleSeasonPick(season);
-                        }}
-                        className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
-                      >
-                        {`第 ${season} 季`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      <SeasonPickerModal
+        open={seasonPicker.open}
+        title={seasonPicker.baseTitle}
+        logo={seasonPicker.logo}
+        backdrop={seasonPicker.backdrop}
+        seasonCount={seasonPicker.seasonCount}
+        onClose={handleCloseSeasonPicker}
+        onPickSeason={handleSeasonPick}
+      />
     </>
   );
 }
+

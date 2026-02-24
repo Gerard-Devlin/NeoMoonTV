@@ -2,23 +2,21 @@
 
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   type MouseEvent as ReactMouseEvent,
-  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
-
-import matrixStyles from '@/app/loading.module.css';
 
 import {
   buildCuratedCategoryQuery,
   CuratedCategoryConfig,
   HOME_CURATED_CATEGORY_CONFIGS,
 } from '@/lib/curated-categories';
+import { useMatrixRouteTransition } from '@/hooks/useMatrixRouteTransition';
 
+import MatrixLoadingOverlay from '@/components/MatrixLoadingOverlay';
 import ScrollableRow from '@/components/ScrollableRow';
 import VideoCard from '@/components/VideoCard';
 
@@ -37,8 +35,6 @@ interface DiscoverApiResponse {
 }
 
 const LOAD_BATCH_SIZE = 2;
-const MATRIX_PATTERN_COUNT = 5;
-const MATRIX_COLUMN_COUNT = 40;
 
 interface CuratedRowSectionProps {
   row: CuratedCategoryConfig;
@@ -151,8 +147,8 @@ function CuratedRowSection({
                 key={`${row.slug}-skeleton-${index}`}
                 className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
               >
-                <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
-                <div className='mt-2 h-4 rounded bg-gray-200/80 animate-pulse dark:bg-zinc-800/80'></div>
+                <div className='skeleton-card-surface relative aspect-[2/3] w-full overflow-hidden animate-pulse'></div>
+                <div className='skeleton-surface mt-2 h-4 w-24 rounded animate-pulse sm:w-32 mx-auto'></div>
               </div>
             ))
           : items.map((item, index) => (
@@ -182,60 +178,11 @@ function CuratedRowSection({
 }
 
 export default function HomeCuratedRows() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const searchParamString = searchParams.toString();
-
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(LOAD_BATCH_SIZE);
   const [loadingMoreRows, setLoadingMoreRows] = useState(false);
-  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
-
-  const handleNavigateWithMatrixLoading = useCallback(
-    (event: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      ) {
-        return;
-      }
-
-      const currentFullPath = searchParamString
-        ? `${pathname}?${searchParamString}`
-        : pathname;
-      if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) {
-        return;
-      }
-
-      event.preventDefault();
-      setShowMatrixLoading(true);
-
-      // Ensure the matrix overlay paints before route change starts.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          router.push(href);
-        });
-      });
-    },
-    [pathname, router, searchParamString]
-  );
-
-  useEffect(() => {
-    if (!showMatrixLoading) return;
-    const timer = window.setTimeout(() => {
-      setShowMatrixLoading(false);
-    }, 10000);
-    return () => window.clearTimeout(timer);
-  }, [showMatrixLoading]);
-
-  useEffect(() => {
-    setShowMatrixLoading(false);
-  }, [pathname, searchParamString]);
+  const { showMatrixLoading, navigateLinkWithMatrixLoading } =
+    useMatrixRouteTransition();
 
   useEffect(() => {
     if (
@@ -280,28 +227,14 @@ export default function HomeCuratedRows() {
 
   return (
     <>
-      {showMatrixLoading ? (
-        <div className='fixed inset-0 z-[2000]'>
-          <div className={matrixStyles['matrix-container']}>
-            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
-              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
-                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
-                  (__unused, columnIndex) => (
-                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
-                  )
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <MatrixLoadingOverlay visible={showMatrixLoading} />
 
       <div className='mb-4'>
         {HOME_CURATED_CATEGORY_CONFIGS.slice(0, visibleCount).map((row) => (
           <CuratedRowSection
             key={row.slug}
             row={row}
-            onNavigateWithMatrixLoading={handleNavigateWithMatrixLoading}
+            onNavigateWithMatrixLoading={navigateLinkWithMatrixLoading}
           />
         ))}
 

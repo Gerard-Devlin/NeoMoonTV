@@ -1,15 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   CheckCircle,
   Heart,
   Star,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 
 import {
   deleteFavorite,
@@ -19,10 +17,16 @@ import {
   saveFavorite,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import {
+  buildTmdbDetailClientCacheKey as buildGlobalTmdbDetailCacheKey,
+  fetchTmdbDetailWithClientCache as fetchGlobalTmdbDetailWithCache,
+  prefetchTmdbDetail,
+} from '@/lib/tmdb-detail.client';
 import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
+import SeasonPickerModal from '@/components/SeasonPickerModal';
 import TmdbDetailModal from '@/components/TmdbDetailModal';
 import {
   AlertDialog,
@@ -189,7 +193,7 @@ const tmdbDetailClientPending = new Map<string, Promise<TmdbCardDetail>>();
 const tmdbDetailPrefetchQueue: Array<() => void> = [];
 const tmdbDetailPrefetchScheduledKeys = new Set<string>();
 let tmdbDetailPrefetchActiveCount = 0;
-let tmdbDetailPrefetchTotalCount = 0;
+const tmdbDetailPrefetchTotalCount = 0;
 
 function normalizeYear(value?: string): string {
   const year = (value || '').trim();
@@ -249,9 +253,11 @@ function normalizeDetailCacheTitle(value: string): string {
 }
 
 function buildTmdbDetailCacheKey(input: TmdbDetailLookupInput): string {
-  const normalizedTitle = normalizeDetailCacheTitle(input.title);
-  const normalizedYear = normalizeYear(input.year) || 'unknown';
-  return `${input.mediaType}:${normalizedTitle}:${normalizedYear}`;
+  return buildGlobalTmdbDetailCacheKey({
+    title: input.title,
+    mediaType: input.mediaType,
+    year: input.year,
+  });
 }
 
 function canUseTmdbDetailPrefetch(): boolean {
@@ -803,45 +809,22 @@ async function fetchTmdbDetailByTitle(
 async function fetchTmdbDetailWithClientCache(
   input: TmdbDetailLookupInput
 ): Promise<TmdbCardDetail> {
-  const cacheKey = buildTmdbDetailCacheKey(input);
-  const cached = readTmdbDetailClientCache(cacheKey);
-  if (cached) return cached;
-
-  const pending = tmdbDetailClientPending.get(cacheKey);
-  if (pending) return pending;
-
-  const request = fetchTmdbDetailByTitle(input)
-    .then((payload) => {
-      writeTmdbDetailClientCache(cacheKey, payload);
-      return payload;
-    })
-    .finally(() => {
-      tmdbDetailClientPending.delete(cacheKey);
-    });
-
-  tmdbDetailClientPending.set(cacheKey, request);
-  return request;
+  return fetchGlobalTmdbDetailWithCache<TmdbCardDetail>({
+    title: input.title,
+    mediaType: input.mediaType,
+    year: input.year,
+    poster: input.poster,
+    score: input.score,
+  });
 }
 
 function scheduleTmdbDetailPrefetch(input: TmdbDetailLookupInput): void {
-  if (!input.title.trim()) return;
-  if (!canUseTmdbDetailPrefetch()) return;
-  if (tmdbDetailPrefetchTotalCount >= TMDB_DETAIL_PREFETCH_MAX_TOTAL) return;
-
-  const cacheKey = buildTmdbDetailCacheKey(input);
-  if (readTmdbDetailClientCache(cacheKey)) return;
-  if (tmdbDetailClientPending.has(cacheKey)) return;
-  if (tmdbDetailPrefetchScheduledKeys.has(cacheKey)) return;
-
-  tmdbDetailPrefetchScheduledKeys.add(cacheKey);
-  tmdbDetailPrefetchTotalCount += 1;
-
-  enqueueTmdbDetailPrefetch(async () => {
-    try {
-      await fetchTmdbDetailWithClientCache(input);
-    } finally {
-      tmdbDetailPrefetchScheduledKeys.delete(cacheKey);
-    }
+  prefetchTmdbDetail({
+    title: input.title,
+    mediaType: input.mediaType,
+    year: input.year,
+    poster: input.poster,
+    score: input.score,
   });
 }
 
@@ -950,10 +933,6 @@ export default function VideoCard({
   const actualEpisodes = aggregateData?.mostFrequentEpisodes ?? episodes;
   const actualYear = aggregateData?.first.year ?? year;
   const actualQuery = query || '';
-  const seasonPickerBackdrop =
-    detailData?.backdrop ||
-    detailData?.poster ||
-    (actualPoster ? processImageUrl(actualPoster) : '');
   const aggregateFirstTypeName = (aggregateData?.first.type_name || '')
     .trim()
     .toLowerCase();
@@ -1112,21 +1091,15 @@ export default function VideoCard({
       const trimmedTitle = (titleValue || '').trim();
       if (!trimmedTitle) return 0;
 
-      const params = new URLSearchParams({
-        title: trimmedTitle,
-        mediaType: 'tv',
-      });
-      if (yearValue) {
-        params.set('year', yearValue.trim());
-      }
-
       try {
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (!response.ok) return 0;
-        const payload = (await response.json()) as {
+        const payload = await fetchGlobalTmdbDetailWithCache<{
           mediaType?: 'movie' | 'tv';
           seasons?: number | null;
-        };
+        }>({
+          title: trimmedTitle,
+          mediaType: 'tv',
+          year: yearValue.trim(),
+        });
         if (payload.mediaType !== 'tv') return 0;
         const seasons = payload.seasons;
         if (typeof seasons !== 'number' || !Number.isFinite(seasons)) return 0;
@@ -1212,28 +1185,6 @@ export default function VideoCard({
     setSeasonPickerOpen(false);
     setSeasonPickerData({ baseTitle: '', year: '', seasonCount: 0 });
   }, []);
-
-  const handleSeasonPickerBackdropPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      handleSeasonPickerClose();
-    },
-    [handleSeasonPickerClose]
-  );
-
-  useEffect(() => {
-    if (!seasonPickerOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        handleSeasonPickerClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [seasonPickerOpen, handleSeasonPickerClose]);
 
   const config = useMemo(() => {
     const configs = {
@@ -1580,90 +1531,15 @@ export default function VideoCard({
         }}
         onPlay={goToPlay}
       />
-
-      {seasonPickerOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-              onPointerDown={handleSeasonPickerBackdropPointerDown}
-            >
-              <div
-                role='dialog'
-                aria-modal='false'
-                aria-label='请选择要播放的季'
-                className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-                onClick={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <div className='absolute inset-0'>
-                  {seasonPickerBackdrop ? (
-                    <Image
-                      src={seasonPickerBackdrop}
-                      alt={seasonPickerData.baseTitle || actualTitle}
-                      fill
-                      className='object-cover opacity-30'
-                    />
-                  ) : null}
-                  <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-                </div>
-
-                <div className='relative p-6'>
-                  <button
-                    type='button'
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handleSeasonPickerClose();
-                    }}
-                    className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
-                    aria-label='关闭选季弹窗'
-                  >
-                    <X size={16} />
-                  </button>
-
-                  <div className='space-y-2 text-center sm:text-left'>
-                    <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
-                    {detailData?.logo ? (
-                      <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
-                        <Image
-                          src={processImageUrl(detailData.logo)}
-                          alt={`${seasonPickerData.baseTitle || actualTitle} logo`}
-                          fill
-                          className='object-contain object-center sm:object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
-                        />
-                      </div>
-                    ) : (
-                      <p className='text-sm text-zinc-300/90'>
-                        {seasonPickerData.baseTitle || actualTitle}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
-                    {Array.from(
-                      { length: Math.max(1, seasonPickerData.seasonCount) },
-                      (_, idx) => idx + 1
-                    ).map((season) => (
-                      <button
-                        key={`season-pick-${season}`}
-                        type='button'
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleSeasonPick(season);
-                        }}
-                        className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
-                      >
-                        {`第 ${season} 季`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      <SeasonPickerModal
+        open={seasonPickerOpen}
+        title={seasonPickerData.baseTitle || actualTitle}
+        logo={detailData?.logo}
+        backdrop={detailData?.backdrop || detailData?.poster || actualPoster}
+        seasonCount={seasonPickerData.seasonCount}
+        onClose={handleSeasonPickerClose}
+        onPickSeason={handleSeasonPick}
+      />
 
       <AlertDialog
         open={deleteDialogOpen}
@@ -1741,5 +1617,6 @@ export default function VideoCard({
     </div>
   );
 }
+
 
 

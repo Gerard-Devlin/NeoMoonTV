@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   CalendarDays,
@@ -7,7 +7,6 @@ import {
   Play,
   Star,
   Users,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -19,10 +18,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 
+import { fetchTmdbDetailWithClientCache } from '@/lib/tmdb-detail.client';
 import { processImageUrl } from '@/lib/utils';
 
+import SeasonPickerModal from '@/components/SeasonPickerModal';
 import TmdbDetailModal from '@/components/TmdbDetailModal';
 
 interface TmdbHeroItem {
@@ -763,14 +763,6 @@ export default function TmdbHeroBanner({
     });
   }, []);
 
-  const handleSeasonPickerBackdropPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      handleCloseSeasonPicker();
-    },
-    [handleCloseSeasonPicker]
-  );
-
   const handleOpenDetail = useCallback(async (item: TmdbHeroItem) => {
     const cacheKey = `${item.mediaType}-${item.id}`;
     setDetailOpen(true);
@@ -789,15 +781,10 @@ export default function TmdbHeroBanner({
     const requestId = ++detailRequestIdRef.current;
     let resolved: TmdbHeroDetail | null = null;
     try {
-      const params = new URLSearchParams({
-        id: String(item.id),
+      const data = await fetchTmdbDetailWithClientCache<TmdbHeroDetail>({
+        id: item.id,
         mediaType: item.mediaType,
       });
-      const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`TMDB detail request failed: ${response.status}`);
-      }
-      const data = (await response.json()) as TmdbHeroDetail;
       if (!data?.id) {
         throw new Error('TMDB detail returned empty payload');
       }
@@ -842,34 +829,29 @@ export default function TmdbHeroBanner({
       }
 
       try {
-        const params = new URLSearchParams({
-          id: String(item.id),
+        const detail = await fetchTmdbDetailWithClientCache<{
+          seasons?: number | null;
+        }>({
+          id: item.id,
           mediaType: 'tv',
         });
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (response.ok) {
-          const payload = (await response.json()) as { seasons?: number | null };
-          const seasons = payload.seasons;
-          if (typeof seasons === 'number' && Number.isFinite(seasons) && seasons > 1) {
-            return Math.floor(seasons);
-          }
+        const seasons = detail.seasons;
+        if (typeof seasons === 'number' && Number.isFinite(seasons) && seasons > 1) {
+          return Math.floor(seasons);
         }
       } catch {
         // ignore and fallback to title lookup
       }
 
       try {
-        const params = new URLSearchParams({
+        const detail = await fetchTmdbDetailWithClientCache<{
+          seasons?: number | null;
+        }>({
           title: item.title,
           mediaType: 'tv',
+          year: item.year,
         });
-        if (item.year) {
-          params.set('year', item.year);
-        }
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (!response.ok) return 0;
-        const payload = (await response.json()) as { seasons?: number | null };
-        const seasons = payload.seasons;
+        const seasons = detail.seasons;
         if (typeof seasons !== 'number' || !Number.isFinite(seasons) || seasons <= 1) {
           return 0;
         }
@@ -1051,30 +1033,7 @@ export default function TmdbHeroBanner({
     };
   }, [detailOpen, handleCloseDetail]);
 
-  useEffect(() => {
-    if (!seasonPicker.open) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        handleCloseSeasonPicker();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [handleCloseSeasonPicker, seasonPicker.open]);
-
   const activeItem = useMemo(() => items[activeIndex], [items, activeIndex]);
-  const seasonPickerBackdrop =
-    seasonPicker.item?.backdrop ||
-    seasonPicker.item?.poster ||
-    detailData?.backdrop ||
-    '';
-  const seasonPickerLogo = seasonPicker.item?.logo || '';
-  const seasonPickerTitle = seasonPicker.baseTitle || seasonPicker.item?.title || '';
   const dragOffsetPercent =
     heroWidth > 0 ? (dragOffsetX / heroWidth) * 100 : 0;
 
@@ -1509,90 +1468,23 @@ export default function TmdbHeroBanner({
             }
           }}
         />
-
-        {seasonPicker.open && typeof document !== 'undefined'
-          ? createPortal(
-              <div
-                className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-                onPointerDown={handleSeasonPickerBackdropPointerDown}
-              >
-                <div
-                  role='dialog'
-                  aria-modal='false'
-                  aria-label='请选择要播放的季'
-                  className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-                  onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <div className='absolute inset-0'>
-                    {seasonPickerBackdrop ? (
-                      <Image
-                        src={safeImageUrl(seasonPickerBackdrop)}
-                        alt={seasonPickerTitle}
-                        fill
-                        className='object-cover opacity-30'
-                      />
-                    ) : null}
-                    <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-                  </div>
-
-                  <div className='relative p-6'>
-                    <button
-                      type='button'
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleCloseSeasonPicker();
-                      }}
-                      className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
-                      aria-label='关闭选季弹窗'
-                    >
-                      <X size={16} />
-                    </button>
-
-                    <div className='space-y-2 text-center sm:text-left'>
-                      <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
-                      {seasonPickerLogo ? (
-                        <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
-                          <Image
-                            src={safeImageUrl(seasonPickerLogo)}
-                            alt={`${seasonPickerTitle} logo`}
-                            fill
-                            className='object-contain object-center sm:object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
-                          />
-                        </div>
-                      ) : (
-                        <p className='text-sm text-zinc-300/90'>{seasonPickerTitle}</p>
-                      )}
-                    </div>
-
-                    <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
-                      {Array.from(
-                        { length: Math.max(1, seasonPicker.seasonCount) },
-                        (_, idx) => idx + 1
-                      ).map((season) => (
-                        <button
-                          key={`hero-season-pick-${season}`}
-                          type='button'
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleSeasonPick(season);
-                          }}
-                          className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
-                        >
-                          {`第 ${season} 季`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )
-          : null}
+        <SeasonPickerModal
+          open={seasonPicker.open}
+          title={seasonPicker.baseTitle || seasonPicker.item?.title || ''}
+          logo={seasonPicker.item?.logo || ''}
+          backdrop={
+            seasonPicker.item?.backdrop ||
+            seasonPicker.item?.poster ||
+            detailData?.backdrop ||
+            ''
+          }
+          seasonCount={seasonPicker.seasonCount}
+          onClose={handleCloseSeasonPicker}
+          onPickSeason={handleSeasonPick}
+        />
 
       </div>
     </section>
   );
 }
+
