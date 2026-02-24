@@ -84,6 +84,14 @@ interface TmdbCardDetail {
   trailerUrl: string;
 }
 
+interface TmdbDetailLookupInput {
+  title: string;
+  year: string;
+  mediaType: TmdbMediaType;
+  poster?: string;
+  score?: string;
+}
+
 interface TmdbDetailRawGenre {
   name?: string;
 }
@@ -166,6 +174,22 @@ const TMDB_CLIENT_API_KEY =
   process.env.NEXT_PUBLIC_TMDB_API_KEY || '';
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
+const TMDB_DETAIL_CLIENT_CACHE_TTL_MS = 10 * 60 * 1000;
+const TMDB_DETAIL_CLIENT_CACHE_MAX_ENTRIES = 240;
+const TMDB_DETAIL_PREFETCH_CONCURRENCY = 2;
+const TMDB_DETAIL_PREFETCH_MAX_TOTAL = 48;
+
+interface TmdbDetailClientCacheEntry {
+  expiresAt: number;
+  payload: TmdbCardDetail;
+}
+
+const tmdbDetailClientCache = new Map<string, TmdbDetailClientCacheEntry>();
+const tmdbDetailClientPending = new Map<string, Promise<TmdbCardDetail>>();
+const tmdbDetailPrefetchQueue: Array<() => void> = [];
+const tmdbDetailPrefetchScheduledKeys = new Set<string>();
+let tmdbDetailPrefetchActiveCount = 0;
+let tmdbDetailPrefetchTotalCount = 0;
 
 function normalizeYear(value?: string): string {
   const year = (value || '').trim();
@@ -218,6 +242,96 @@ function normalizeMediaType(value?: string, episodes?: number): TmdbMediaType {
   if (value === 'movie') return 'movie';
   if (typeof episodes === 'number' && episodes > 1) return 'tv';
   return 'movie';
+}
+
+function normalizeDetailCacheTitle(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function buildTmdbDetailCacheKey(input: TmdbDetailLookupInput): string {
+  const normalizedTitle = normalizeDetailCacheTitle(input.title);
+  const normalizedYear = normalizeYear(input.year) || 'unknown';
+  return `${input.mediaType}:${normalizedTitle}:${normalizedYear}`;
+}
+
+function canUseTmdbDetailPrefetch(): boolean {
+  if (typeof navigator === 'undefined') return true;
+
+  const connection = (navigator as Navigator & {
+    connection?: {
+      saveData?: boolean;
+      effectiveType?: string;
+    };
+  }).connection;
+
+  if (!connection) return true;
+  if (connection.saveData) return false;
+
+  const effectiveType = (connection.effectiveType || '').toLowerCase();
+  if (effectiveType === 'slow-2g' || effectiveType === '2g') {
+    return false;
+  }
+
+  return true;
+}
+
+function pruneTmdbDetailClientCache(): void {
+  while (tmdbDetailClientCache.size > TMDB_DETAIL_CLIENT_CACHE_MAX_ENTRIES) {
+    const oldestKey = tmdbDetailClientCache.keys().next().value;
+    if (!oldestKey) break;
+    tmdbDetailClientCache.delete(oldestKey);
+  }
+}
+
+function readTmdbDetailClientCache(key: string): TmdbCardDetail | null {
+  const hit = tmdbDetailClientCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    tmdbDetailClientCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function writeTmdbDetailClientCache(
+  key: string,
+  payload: TmdbCardDetail
+): void {
+  tmdbDetailClientCache.set(key, {
+    payload,
+    expiresAt: Date.now() + TMDB_DETAIL_CLIENT_CACHE_TTL_MS,
+  });
+  pruneTmdbDetailClientCache();
+}
+
+function pumpTmdbDetailPrefetchQueue(): void {
+  while (
+    tmdbDetailPrefetchActiveCount < TMDB_DETAIL_PREFETCH_CONCURRENCY &&
+    tmdbDetailPrefetchQueue.length > 0
+  ) {
+    const runner = tmdbDetailPrefetchQueue.shift();
+    if (!runner) return;
+    tmdbDetailPrefetchActiveCount += 1;
+    runner();
+  }
+}
+
+function enqueueTmdbDetailPrefetch(task: () => Promise<void>): void {
+  tmdbDetailPrefetchQueue.push(() => {
+    task()
+      .catch(() => {
+        // ignore prefetch errors to keep interaction path clean
+      })
+      .finally(() => {
+        tmdbDetailPrefetchActiveCount = Math.max(
+          0,
+          tmdbDetailPrefetchActiveCount - 1
+        );
+        pumpTmdbDetailPrefetchQueue();
+      });
+  });
+
+  pumpTmdbDetailPrefetchQueue();
 }
 
 function hasSeasonHint(value: string): boolean {
@@ -579,13 +693,9 @@ async function fetchTmdbLogo(
   }
 }
 
-async function fetchTmdbDetailByTitle(input: {
-  title: string;
-  year: string;
-  mediaType: TmdbMediaType;
-  poster?: string;
-  score?: string;
-}): Promise<TmdbCardDetail> {
+async function fetchTmdbDetailByTitle(
+  input: TmdbDetailLookupInput
+): Promise<TmdbCardDetail> {
   const routeParams = new URLSearchParams({
     title: input.title,
     type: input.mediaType,
@@ -690,6 +800,51 @@ async function fetchTmdbDetailByTitle(input: {
   };
 }
 
+async function fetchTmdbDetailWithClientCache(
+  input: TmdbDetailLookupInput
+): Promise<TmdbCardDetail> {
+  const cacheKey = buildTmdbDetailCacheKey(input);
+  const cached = readTmdbDetailClientCache(cacheKey);
+  if (cached) return cached;
+
+  const pending = tmdbDetailClientPending.get(cacheKey);
+  if (pending) return pending;
+
+  const request = fetchTmdbDetailByTitle(input)
+    .then((payload) => {
+      writeTmdbDetailClientCache(cacheKey, payload);
+      return payload;
+    })
+    .finally(() => {
+      tmdbDetailClientPending.delete(cacheKey);
+    });
+
+  tmdbDetailClientPending.set(cacheKey, request);
+  return request;
+}
+
+function scheduleTmdbDetailPrefetch(input: TmdbDetailLookupInput): void {
+  if (!input.title.trim()) return;
+  if (!canUseTmdbDetailPrefetch()) return;
+  if (tmdbDetailPrefetchTotalCount >= TMDB_DETAIL_PREFETCH_MAX_TOTAL) return;
+
+  const cacheKey = buildTmdbDetailCacheKey(input);
+  if (readTmdbDetailClientCache(cacheKey)) return;
+  if (tmdbDetailClientPending.has(cacheKey)) return;
+  if (tmdbDetailPrefetchScheduledKeys.has(cacheKey)) return;
+
+  tmdbDetailPrefetchScheduledKeys.add(cacheKey);
+  tmdbDetailPrefetchTotalCount += 1;
+
+  enqueueTmdbDetailPrefetch(async () => {
+    try {
+      await fetchTmdbDetailWithClientCache(input);
+    } finally {
+      tmdbDetailPrefetchScheduledKeys.delete(cacheKey);
+    }
+  });
+}
+
 export default function VideoCard({
   id,
   title = '',
@@ -733,6 +888,8 @@ export default function VideoCard({
   const detailCacheRef = useRef<Record<string, TmdbCardDetail>>({});
   const detailRequestIdRef = useRef(0);
   const suppressCardClickUntilRef = useRef(0);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const hasScheduledPrefetchRef = useRef(false);
 
   const isAggregate = from === 'search' && !!items?.length;
 
@@ -816,7 +973,7 @@ export default function VideoCard({
           ? 'movie'
           : 'tv'
     : type;
-  const tmdbTrigger = useMemo(
+  const tmdbTrigger = useMemo<TmdbDetailLookupInput>(
     () => ({
       title: (actualTitle || '').trim(),
       year: normalizeYear(actualYear),
@@ -825,6 +982,10 @@ export default function VideoCard({
       score: rate || '',
     }),
     [actualTitle, actualYear, actualSearchType, actualEpisodes, actualPoster, rate]
+  );
+  const tmdbDetailCacheKey = useMemo(
+    () => buildTmdbDetailCacheKey(tmdbTrigger),
+    [tmdbTrigger]
   );
 
   // 闁兼儳鍢茶ぐ鍥绩閹増顥戦柣妯垮煐閳?
@@ -1112,6 +1273,48 @@ export default function VideoCard({
     return configs[from] || configs.search;
   }, [from, hasDoubanId, isAggregate, rate]);
 
+  const prefetchTmdbDetail = useCallback(() => {
+    if (hasScheduledPrefetchRef.current) return;
+    if (from === 'playrecord') return;
+    if (!tmdbTrigger.title) return;
+
+    hasScheduledPrefetchRef.current = true;
+    scheduleTmdbDetailPrefetch(tmdbTrigger);
+  }, [from, tmdbTrigger]);
+
+  useEffect(() => {
+    hasScheduledPrefetchRef.current = false;
+  }, [tmdbDetailCacheKey]);
+
+  useEffect(() => {
+    if (from === 'playrecord') return;
+    if (!tmdbTrigger.title) return;
+    if (!canUseTmdbDetailPrefetch()) return;
+
+    const node = cardRef.current;
+    if (!node) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      prefetchTmdbDetail();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        prefetchTmdbDetail();
+        observer.disconnect();
+      },
+      {
+        rootMargin: '240px 0px 240px 0px',
+        threshold: 0.05,
+      }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [from, prefetchTmdbDetail, tmdbTrigger.title]);
+
   const handleCloseDetail = useCallback(() => {
     suppressCardClickUntilRef.current = Date.now() + 220;
     setDetailOpen(false);
@@ -1132,8 +1335,7 @@ export default function VideoCard({
       return;
     }
 
-    const cacheKey = `${tmdbTrigger.mediaType}-${tmdbTrigger.title}-${tmdbTrigger.year}`;
-    const cached = detailCacheRef.current[cacheKey];
+    const cached = detailCacheRef.current[tmdbDetailCacheKey];
     if (cached) {
       setDetailData(cached);
       setDetailError(null);
@@ -1148,9 +1350,9 @@ export default function VideoCard({
     const requestId = ++detailRequestIdRef.current;
 
     try {
-      const detail = await fetchTmdbDetailByTitle(tmdbTrigger);
+      const detail = await fetchTmdbDetailWithClientCache(tmdbTrigger);
       if (detailRequestIdRef.current !== requestId) return;
-      detailCacheRef.current[cacheKey] = detail;
+      detailCacheRef.current[tmdbDetailCacheKey] = detail;
       setDetailData(detail);
     } catch {
       if (detailRequestIdRef.current !== requestId) return;
@@ -1161,7 +1363,14 @@ export default function VideoCard({
         setDetailLoading(false);
       }
     }
-  }, [detailLoading, detailOpen, from, goToPlay, tmdbTrigger]);
+  }, [
+    detailLoading,
+    detailOpen,
+    from,
+    goToPlay,
+    tmdbDetailCacheKey,
+    tmdbTrigger,
+  ]);
 
   const handleCardContainerClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1177,10 +1386,9 @@ export default function VideoCard({
   const handleRetryDetail = useCallback(async () => {
       if (!tmdbTrigger.title) return;
 
-      const cacheKey = `${tmdbTrigger.mediaType}-${tmdbTrigger.title}-${tmdbTrigger.year}`;
       setDetailError(null);
 
-      const cached = detailCacheRef.current[cacheKey];
+      const cached = detailCacheRef.current[tmdbDetailCacheKey];
       if (cached) {
         setDetailData(cached);
         setDetailLoading(false);
@@ -1192,9 +1400,9 @@ export default function VideoCard({
       const requestId = ++detailRequestIdRef.current;
 
       try {
-        const detail = await fetchTmdbDetailByTitle(tmdbTrigger);
+        const detail = await fetchTmdbDetailWithClientCache(tmdbTrigger);
         if (detailRequestIdRef.current !== requestId) return;
-        detailCacheRef.current[cacheKey] = detail;
+        detailCacheRef.current[tmdbDetailCacheKey] = detail;
         setDetailData(detail);
       } catch (err) {
         if (detailRequestIdRef.current !== requestId) return;
@@ -1204,7 +1412,7 @@ export default function VideoCard({
           setDetailLoading(false);
         }
       }
-    }, [tmdbTrigger]);
+    }, [tmdbDetailCacheKey, tmdbTrigger]);
 
   useEffect(() => {
     if (!detailOpen) return;
@@ -1234,8 +1442,11 @@ export default function VideoCard({
 
   return (
     <div
+      ref={cardRef}
       className='group relative w-full rounded-[22px] bg-transparent cursor-pointer transition-all duration-300 ease-in-out hover:scale-[1.05] hover:z-[500]'
       onClick={handleCardContainerClick}
+      onPointerEnter={prefetchTmdbDetail}
+      onTouchStart={prefetchTmdbDetail}
     >
       {/* 婵炴挳鏀辨慨銈団偓鍦嚀濞?*/}
       <div className='relative aspect-[2/3] overflow-hidden rounded-[22px]'>
