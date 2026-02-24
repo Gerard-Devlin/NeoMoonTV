@@ -311,7 +311,7 @@ function LoadingSkeleton() {
   return (
     <>
       <div className='relative hidden md:block'>
-        <div className='-mx-1 overflow-x-auto pb-1 scrollbar-hide'>
+        <div className='-mx-1 overflow-x-auto pb-1 pt-1 scrollbar-hide'>
           <div className='flex min-w-max gap-5 px-1'>
             {Array.from({ length: TOP_RATED_DISPLAY_COUNT }).map((_, index) => (
               <div
@@ -439,7 +439,7 @@ function RankedSection({
           >
             <div
               ref={desktopScrollRef}
-              className='-mx-1 overflow-x-auto pb-1 scrollbar-hide'
+              className='-mx-1 overflow-x-auto pb-1 pt-1 scrollbar-hide'
               onScroll={checkDesktopScroll}
             >
               <div className='flex min-w-max gap-5 px-1'>
