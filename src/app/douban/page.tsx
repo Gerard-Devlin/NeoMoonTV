@@ -55,6 +55,7 @@ interface FilterState {
   releaseYearMin: string;
   releaseYearMax: string;
   selectedGenres: number[];
+  excludedGenres: number[];
   language: string;
   ratingMin: string;
   ratingMax: string;
@@ -126,6 +127,7 @@ const DEFAULT_FILTERS: FilterState = {
   releaseYearMin: String(MIN_RELEASE_YEAR),
   releaseYearMax: String(CURRENT_YEAR),
   selectedGenres: [],
+  excludedGenres: [],
   language: '',
   ratingMin: String(MIN_RATING),
   ratingMax: String(MAX_RATING),
@@ -281,6 +283,10 @@ function DoubanPageClient() {
     () => Array.from(new Set([...filters.selectedGenres])),
     [filters.selectedGenres]
   );
+  const mergedExcludedGenres = useMemo(
+    () => Array.from(new Set([...filters.excludedGenres])),
+    [filters.excludedGenres]
+  );
   const genreOptions = useMemo(
     () => (media === 'tv' ? TV_GENRE_OPTIONS : MOVIE_GENRE_OPTIONS),
     [media]
@@ -311,6 +317,9 @@ function DoubanPageClient() {
     }
     if (mergedGenres.length > 0)
       params.set('with_genres', mergedGenres.join(','));
+    if (mergedExcludedGenres.length > 0) {
+      params.set('without_genres', mergedExcludedGenres.join(','));
+    }
     if (filters.language) params.set('language', filters.language);
     const ratingMin = Number(
       parseNumberLike(filters.ratingMin) || String(MIN_RATING)
@@ -339,7 +348,7 @@ function DoubanPageClient() {
     }
 
     return params.toString();
-  }, [filters, media, mergedGenres, sortMode]);
+  }, [filters, media, mergedExcludedGenres, mergedGenres, sortMode]);
 
   const fetchPage = useCallback(
     async (page: number, append: boolean) => {
@@ -631,7 +640,30 @@ function DoubanPageClient() {
       const nextGenres = exists
         ? prev.selectedGenres.filter((id) => id !== genreId)
         : [...prev.selectedGenres, genreId];
-      return { ...prev, selectedGenres: nextGenres };
+      // 包含类型和排除类型互斥，避免同一类型同时出现在两边导致结果不稳定
+      const nextExcludedGenres = prev.excludedGenres.filter(
+        (id) => id !== genreId
+      );
+      return {
+        ...prev,
+        selectedGenres: nextGenres,
+        excludedGenres: nextExcludedGenres,
+      };
+    });
+  }, []);
+
+  const toggleExcludedGenre = useCallback((genreId: number) => {
+    setFilters((prev) => {
+      const exists = prev.excludedGenres.includes(genreId);
+      const nextExcludedGenres = exists
+        ? prev.excludedGenres.filter((id) => id !== genreId)
+        : [...prev.excludedGenres, genreId];
+      const nextGenres = prev.selectedGenres.filter((id) => id !== genreId);
+      return {
+        ...prev,
+        selectedGenres: nextGenres,
+        excludedGenres: nextExcludedGenres,
+      };
     });
   }, []);
 
@@ -943,6 +975,38 @@ function DoubanPageClient() {
                               className={`rounded-full border px-3 py-1.5 text-sm transition ${
                                 active
                                   ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {genre.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div
+                      className={`flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4 ${
+                        showAdvancedFilters ? '' : 'hidden'
+                      }`}
+                    >
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
+                        <Tags className='h-4 w-4' />
+                        {'\u6392\u9664\u7c7b\u578b'}
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {genreOptions.map((genre) => {
+                          const active = filters.excludedGenres.includes(
+                            genre.id
+                          );
+                          return (
+                            <button
+                              key={`exclude-${genre.id}`}
+                              type='button'
+                              aria-pressed={active}
+                              onClick={() => toggleExcludedGenre(genre.id)}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                active
+                                  ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-500/60 dark:bg-rose-900/20 dark:text-rose-300'
                                   : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
                               }`}
                             >
