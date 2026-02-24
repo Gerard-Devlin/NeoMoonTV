@@ -952,6 +952,9 @@ function PlayPageClient() {
   ): SearchResult[] => {
     const normalizedExpected = normalizeCompareText(expectedTitle);
     const expectedNoSeason = stripSeasonTokens(expectedTitle);
+    const wantsSpecialTitle = isLikelySpecialTitle(
+      seasonHintText || expectedTitle || searchTitle || videoTitleRef.current
+    );
     const seasonHints = extractSeasonHints(
       seasonHintText || expectedTitle || searchTitle || videoTitleRef.current
     );
@@ -979,12 +982,20 @@ function PlayPageClient() {
 
     for (const pool of pools) {
       const exactMatches = pool.filter(
-        (result) => normalizeCompareText(result.title) === normalizedExpected
+        (result) =>
+          normalizeCompareText(result.title) === normalizedExpected &&
+          (expectedType !== 'tv' ||
+            wantsSpecialTitle ||
+            !isLikelySpecialTitle(result.title))
       );
       if (exactMatches.length > 0) return exactMatches;
 
       if (expectedType === 'tv') {
         const fuzzyMatches = pool.filter((result) => {
+          if (!wantsSpecialTitle && isLikelySpecialTitle(result.title)) {
+            return false;
+          }
+
           const titleNoSeason = stripSeasonTokens(result.title);
           const baseMatch =
             Boolean(titleNoSeason) &&
