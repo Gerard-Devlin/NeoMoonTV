@@ -705,6 +705,40 @@ function PlayPageClient() {
     return Array.from(hints);
   };
 
+  const extractSeasonNumbers = (value: string): number[] => {
+    const text = value || '';
+    const numbers = new Set<number>();
+    const pushNumber = (input: number) => {
+      if (!Number.isFinite(input) || input <= 0) return;
+      numbers.add(Math.floor(input));
+    };
+
+    const arabicMatches = text.match(/第\s*(\d{1,2})\s*季/gi) || [];
+    arabicMatches.forEach((raw) => {
+      const m = raw.match(/(\d{1,2})/);
+      if (!m) return;
+      pushNumber(Number(m[1]));
+    });
+
+    const seasonMatches =
+      text.match(/(?:season|series|s)\s*0*(\d{1,2})/gi) || [];
+    seasonMatches.forEach((raw) => {
+      const m = raw.match(/(\d{1,2})/);
+      if (!m) return;
+      pushNumber(Number(m[1]));
+    });
+
+    const chineseMatches =
+      text.match(/第\s*([一二三四五六七八九十两]{1,3})\s*季/g) || [];
+    chineseMatches.forEach((raw) => {
+      const m = raw.match(/([一二三四五六七八九十两]{1,3})/);
+      if (!m) return;
+      pushNumber(parseChineseNumeral(m[1]));
+    });
+
+    return Array.from(numbers);
+  };
+
   const buildTvQueryCandidates = (
     primaryTitle: string,
     seasonHintText?: string
@@ -740,7 +774,14 @@ function PlayPageClient() {
       seasonHintText || primaryTitle || searchTitle || videoTitleRef.current
     );
     const baseNoSeason = stripSeasonTokensForQuery(baseTitle) || baseTitle;
+    const baseCore = stripSpecialTokensForQuery(baseNoSeason) || baseNoSeason;
     const compactBaseNoSeason = baseNoSeason.replace(/\s+/g, '').trim();
+    push(baseNoSeason);
+    push(baseCore);
+    if (compactBaseNoSeason) {
+      pushRaw(compactBaseNoSeason);
+    }
+
     seasonHints.forEach((hint) => {
       const compactHint = hint.replace(/\s+/g, '').trim();
       push(`${baseNoSeason} ${hint}`);
@@ -958,6 +999,10 @@ function PlayPageClient() {
     const seasonHints = extractSeasonHints(
       seasonHintText || expectedTitle || searchTitle || videoTitleRef.current
     );
+    const seasonNumbers = extractSeasonNumbers(
+      seasonHintText || expectedTitle || searchTitle || videoTitleRef.current
+    );
+    const allowSeasonlessFallback = seasonNumbers.includes(1);
     const normalizedSeasonHints = seasonHints
       .map((hint) => normalizeCompareText(hint))
       .filter(Boolean);
@@ -1011,10 +1056,17 @@ function PlayPageClient() {
           const resultHints = extractSeasonHints(result.title)
             .map((hint) => normalizeCompareText(hint))
             .filter(Boolean);
-
-          return normalizedSeasonHints.some(
+          const seasonHintMatched = normalizedSeasonHints.some(
             (hint) =>
               normalizedTitle.includes(hint) || resultHints.includes(hint)
+          );
+          if (seasonHintMatched) return true;
+
+          // 第一季在很多源里不带季数字样，这里做仅限第一季的回退放宽。
+          return (
+            allowSeasonlessFallback &&
+            resultHints.length === 0 &&
+            titleNoSeason === expectedNoSeason
           );
         });
         if (fuzzyMatches.length > 0) return fuzzyMatches;
