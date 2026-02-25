@@ -33,10 +33,10 @@
 
 ### 项目截图
 
-<img src="public/screenshot1.png" alt="项目截图" style="max-width:600px">
-<img src="public/screenshot2.png" alt="项目截图" style="max-width:600px">
-<img src="public/screenshot3.png" alt="项目截图" style="max-width:600px">
-<img src="public/screenshot4.png" alt="项目截图" style="max-width:600px">
+<img src="public/screenshot1.png" alt="项目截图" style="max-width:800px">
+<img src="public/screenshot2.png" alt="项目截图" style="max-width:800px">
+<img src="public/screenshot3.png" alt="项目截图" style="max-width:800px">
+<img src="public/screenshot4.png" alt="项目截图" style="max-width:800px">
 
 ## 🗺 目录
 
@@ -330,6 +330,8 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 [MIT](LICENSE) © 2025 MoonTV & Contributors
 
 ## 致谢
+
+- <img src="public/TMDB_Green.svg" alt="TMDB-logo" style="max-width:80px">
 
 - [ts-nextjs-tailwind-starter](https://github.com/theodorusclarence/ts-nextjs-tailwind-starter) — 项目最初基于该脚手架。
 - [LibreTV](https://github.com/LibreSpark/LibreTV) — 由此启发，站在巨人的肩膀上。
