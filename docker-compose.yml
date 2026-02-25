@@ -1,0 +1,34 @@
+services:
+  moontv:
+    image: ${MOONTV_IMAGE:-moontv:multi}
+    container_name: moontv
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.docker
+    environment:
+      NEXT_PUBLIC_STORAGE_TYPE: ${NEXT_PUBLIC_STORAGE_TYPE:-redis}
+      REDIS_URL: ${REDIS_URL:-redis://moontv-redis:6379}
+      DOCKER_ENV: 'true'
+    depends_on:
+      - moontv-redis
+    networks:
+      - moontv-network
+
+  moontv-redis:
+    image: redis:7-alpine
+    container_name: moontv-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    networks:
+      - moontv-network
+
+volumes:
+  redis-data:
+
+networks:
+  moontv-network:
+    driver: bridge

@@ -1,5 +1,6 @@
 # ---- 第 1 阶段：安装依赖 ----
-FROM node:20-alpine AS deps
+ARG NODE_IMAGE=node:20-alpine
+FROM ${NODE_IMAGE} AS deps
 
 # 启用 corepack 并激活 pnpm（Node20 默认提供 corepack）
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -13,9 +14,11 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # ---- 第 2 阶段：构建项目 ----
-FROM node:20-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
+ARG STORAGE_TYPE=redis
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
+ENV NEXT_PUBLIC_STORAGE_TYPE=${STORAGE_TYPE}
 
 # 复制依赖
 COPY --from=deps /app/node_modules ./node_modules
@@ -35,7 +38,8 @@ RUN sed -i "/const inter = Inter({ subsets: \['latin'] });/a export const dynami
 RUN pnpm run build
 
 # ---- 第 3 阶段：生成运行时镜像 ----
-FROM node:20-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
+ARG STORAGE_TYPE=redis
 
 # 创建非 root 用户
 RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nextjs -G nodejs
@@ -45,6 +49,7 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 ENV DOCKER_ENV=true
+ENV NEXT_PUBLIC_STORAGE_TYPE=${STORAGE_TYPE}
 
 # 从构建器中复制 standalone 输出
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
