@@ -134,15 +134,18 @@
 
 ### Docker 部署
 
-#### 1. 直接运行（最简单，localstorage）
+#### 1. 直接运行（单容器，内置 Redis）
 
 ```bash
-# 拉取预构建镜像
-docker pull ghcr.io/senshinya/moontv:latest
+# 如已打包成 tar（推荐离线/跨机器部署）
+docker load -i moontv-single.tar
+
+# 或本地构建单容器镜像
+# docker build -f Dockerfile.single -t moontv:single .
 
 # 运行容器
 # -d: 后台运行  -p: 映射端口 3000 -> 3000
-docker run -d --name moontv -p 3000:3000 --env PASSWORD=your_password ghcr.io/senshinya/moontv:latest
+docker run -d --name moontv -p 3000:3000 --env-file .env.docker -v moontv_data:/data moontv:single
 ```
 
 访问 `http://服务器 IP:3000` 即可。（需自行到服务器控制台放通 `3000` 端口）
@@ -151,12 +154,21 @@ docker run -d --name moontv -p 3000:3000 --env PASSWORD=your_password ghcr.io/se
 
 若你使用 docker compose 部署，以下是一些 compose 示例
 
-### local storage 版本
+推荐直接使用仓库自带配置文件：
+
+```bash
+cp .env.docker.example .env.docker
+docker compose -f docker-compose.single.yml up -d   # 单容器（内置 Redis）
+# 或
+docker compose up -d                                 # 双容器（应用 + 独立 Redis）
+```
+
+### 单容器版本（内置 Redis）
 
 ```yaml
 services:
   moontv:
-    image: ghcr.io/senshinya/moontv:latest
+    image: ${MOONTV_IMAGE:-moontv:single}
     container_name: moontv
     restart: unless-stopped
     ports:
@@ -173,7 +185,7 @@ services:
 ```yaml
 services:
   moontv-core:
-    image: ghcr.io/senshinya/moontv:latest
+    image: ${MOONTV_IMAGE:-moontv:multi}
     container_name: moontv
     restart: unless-stopped
     ports:
@@ -192,7 +204,7 @@ services:
     # volumes:
     #   - ./config.json:/app/config.json:ro
   moontv-redis:
-    image: redis
+    image: redis:7-alpine
     container_name: moontv-redis
     restart: unless-stopped
     networks:
