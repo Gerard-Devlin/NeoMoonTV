@@ -327,7 +327,7 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 
 ## License
 
-[MIT](LICENSE) © 2025 MoonTV & Contributors
+[MIT](LICENSE) © 2026 NeoMoonTV & Contributors
 
 ## 致谢
 
