@@ -1,0 +1,18 @@
+services:
+  moontv:
+    image: ${MOONTV_IMAGE:-moontv:single}
+    container_name: moontv
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.docker
+    environment:
+      DOCKER_ENV: 'true'
+      NEXT_PUBLIC_STORAGE_TYPE: redis
+      REDIS_URL: redis://127.0.0.1:6379
+    volumes:
+      - redis-data-single:/data
+
+volumes:
+  redis-data-single:

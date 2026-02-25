@@ -71,7 +71,15 @@ async function initConfig() {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType !== 'localstorage') {
     // 数据库存储，读取并补全管理员配置
-    const storage = getStorage();
+    let storage: ReturnType<typeof getStorage> | null = null;
+    try {
+      storage = getStorage();
+    } catch (error) {
+      console.warn(
+        'Storage initialization failed, fallback to file-based admin config:',
+        error
+      );
+    }
 
     try {
       // 尝试从数据库获取管理员配置
