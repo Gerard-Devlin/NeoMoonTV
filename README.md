@@ -8,7 +8,7 @@
 
 <div align="center">
 
-![Next.js](https://img.shields.io/badge/Next.js-14-000?style=for-the-badge&logo=nextdotjs)![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-38bdf8?style=for-the-badge&logo=tailwindcss)![TypeScript](https://img.shields.io/badge/TypeScript-4.x-3178c6?style=for-the-badge&logo=typescript)![License](https://img.shields.io/github/license/Gerard-Devlin/NeoMoonTV?style=for-the-badge)![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?style=for-the-badge&logo=docker)![Stars](https://img.shields.io/github/stars/Gerard-Devlin/NeoMoonTV?style=for-the-badge&logo=github&logoColor=white&color=7c3aed)![Redis](https://img.shields.io/badge/Redis-Powered-dc382d?style=for-the-badge&logo=redis&logoColor=white)![Cloudflare](https://img.shields.io/badge/Cloudflare-Edge-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-14-000?style=for-the-badge&logo=nextdotjs) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-38bdf8?style=for-the-badge&logo=tailwindcss) ![TypeScript](https://img.shields.io/badge/TypeScript-4.x-3178c6?style=for-the-badge&logo=typescript) ![License](https://img.shields.io/github/license/Gerard-Devlin/NeoMoonTV?style=for-the-badge) ![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?style=for-the-badge&logo=docker) ![Stars](https://img.shields.io/github/stars/Gerard-Devlin/NeoMoonTV?style=for-the-badge&logo=github&logoColor=white&color=7c3aed) ![Redis](https://img.shields.io/badge/Redis-Powered-dc382d?style=for-the-badge&logo=redis&logoColor=white) ![Cloudflare](https://img.shields.io/badge/Cloudflare-Edge-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
 
 </div>
 
