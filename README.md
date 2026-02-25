@@ -331,7 +331,7 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 
 ## 致谢
 
-- <img src="public/TMDB_Green.svg" alt="TMDB-logo" style="max-width:80px">
+- <img src="public/TMDB_Green.svg" alt="TMDB-logo" style="width:120px;">
 
 - [ts-nextjs-tailwind-starter](https://github.com/theodorusclarence/ts-nextjs-tailwind-starter) — 项目最初基于该脚手架。
 - [LibreTV](https://github.com/LibreSpark/LibreTV) — 由此启发，站在巨人的肩膀上。
