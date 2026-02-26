@@ -138,7 +138,7 @@ export default function TmdbDetailModal({
             role='dialog'
             aria-modal='true'
             aria-label='Detail dialog'
-            className='relative w-full max-w-4xl overflow-hidden rounded-[22px] border border-white/20 bg-slate-950 text-white shadow-2xl'
+            className='relative w-full max-w-4xl overflow-hidden rounded-[22px] border border-white/20 bg-zinc-950 text-white shadow-2xl'
             initial={
               shouldReduceMotion
                 ? { opacity: 0.92, scale: 1 }
@@ -187,7 +187,7 @@ export default function TmdbDetailModal({
                   className='object-cover opacity-30'
                 />
               ) : null}
-              <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
+              <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-zinc-950/85 to-zinc-950' />
             </motion.div>
 
             <motion.div
