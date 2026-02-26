@@ -3070,6 +3070,8 @@ function PlayPageClient() {
       }
       Artplayer.PLAYBACK_RATE = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
       Artplayer.USE_RAF = true;
+      // Render web-fullscreen player under <body> to avoid being clipped/covered by page stacking contexts.
+      Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
       artPlayerRef.current = new Artplayer({
         container: artRef.current,
