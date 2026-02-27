@@ -1,6 +1,16 @@
 ﻿'use client';
 
-import { BarChart3, Heart, History, Search, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Clapperboard,
+  ListFilter,
+  Play,
+  Shuffle,
+  Tags,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   type MouseEvent,
   type SyntheticEvent,
@@ -77,6 +87,8 @@ interface FavoriteItem {
 }
 
 type ActiveTab = 'play' | 'favorite' | 'analysis';
+type PlayToolbarSortMode = 'latest' | 'titleAsc' | 'titleDesc';
+type PlayToolbarFilterMode = 'all' | 'movie' | 'tv';
 
 type AnalysisView = 'day' | 'week' | 'month' | 'year';
 type GenreScope = 'all' | 'movie' | 'tv';
@@ -187,7 +199,15 @@ const WATCH_FORMAT_LABELS: Record<'movie' | 'tv', string> = {
   tv: '连续剧',
   movie: '电影',
 };
-const WATCH_TIME_HEATMAP_DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const;
+const WATCH_TIME_HEATMAP_DAYS = [
+  '周一',
+  '周二',
+  '周三',
+  '周四',
+  '周五',
+  '周六',
+  '周日',
+] as const;
 const WATCH_TIME_HEATMAP_SLOTS = [
   { label: '00-03', start: 0, end: 4 },
   { label: '04-07', start: 4, end: 8 },
@@ -325,6 +345,55 @@ function parseStorageKey(key: string): { source: string; id: string } {
     source: key.slice(0, splitIndex),
     id: key.slice(splitIndex + 1),
   };
+}
+
+function buildPlayUrl(record: PlayRecordItem): string {
+  const { source, id } = parseStorageKey(record.key);
+  const normalizedTitle = (record.title || '').trim();
+  const normalizedSearchTitle = (record.search_title || '').trim();
+  const normalizedYear = (record.year || '').trim();
+  const params = new URLSearchParams();
+
+  if (source && id) {
+    params.set('source', source);
+    params.set('id', id);
+  }
+  params.set('title', normalizedTitle || normalizedSearchTitle || '未知标题');
+  if (normalizedSearchTitle) {
+    params.set('stitle', normalizedSearchTitle);
+  }
+  if (normalizedYear) {
+    params.set('year', normalizedYear);
+  }
+  if (getWatchFormat(record) === 'tv') {
+    params.set('stype', 'tv');
+  }
+
+  return `/play?${params.toString()}`;
+}
+
+function buildFavoritePlayUrl(item: FavoriteItem): string {
+  const normalizedTitle = (item.title || '').trim();
+  const normalizedSearchTitle = (item.searchTitle || '').trim();
+  const normalizedYear = (item.year || '').trim();
+  const params = new URLSearchParams();
+
+  if (item.source && item.id) {
+    params.set('source', item.source);
+    params.set('id', item.id);
+  }
+  params.set('title', normalizedTitle || normalizedSearchTitle || '未知标题');
+  if (normalizedSearchTitle) {
+    params.set('stitle', normalizedSearchTitle);
+  }
+  if (normalizedYear) {
+    params.set('year', normalizedYear);
+  }
+  if ((item.episodes || 0) > 1) {
+    params.set('stype', 'tv');
+  }
+
+  return `/play?${params.toString()}`;
 }
 
 function stripSeasonHintFromTitle(title: string): string {
@@ -594,14 +663,21 @@ function CompletionPieLegend({
       <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400'>
         {chartData.map((item) => {
           const configEntry =
-            COMPLETION_CHART_CONFIG[item.browser as keyof typeof COMPLETION_CHART_CONFIG];
+            COMPLETION_CHART_CONFIG[
+              item.browser as keyof typeof COMPLETION_CHART_CONFIG
+            ];
           const color =
-            configEntry && typeof configEntry === 'object' && 'color' in configEntry
+            configEntry &&
+            typeof configEntry === 'object' &&
+            'color' in configEntry
               ? configEntry.color
               : '#3b82f6';
 
           return (
-            <div key={item.browser} className='inline-flex items-center gap-1.5'>
+            <div
+              key={item.browser}
+              className='inline-flex items-center gap-1.5'
+            >
               <span
                 className='inline-block h-2.5 w-2.5 rounded-full'
                 style={{ backgroundColor: color }}
@@ -617,6 +693,7 @@ function CompletionPieLegend({
 }
 
 function MyPageClient() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ActiveTab>('play');
   const [playRecords, setPlayRecords] = useState<PlayRecordItem[]>([]);
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
@@ -635,7 +712,31 @@ function MyPageClient() {
   );
   const [deleting, setDeleting] = useState(false);
   const [playSearchKeyword, setPlaySearchKeyword] = useState('');
-  const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
+  const [playSortMode, setPlaySortMode] =
+    useState<PlayToolbarSortMode>('latest');
+  const [playFilterMode, setPlayFilterMode] =
+    useState<PlayToolbarFilterMode>('all');
+  const [favoriteSortMode, setFavoriteSortMode] =
+    useState<PlayToolbarSortMode>('latest');
+  const [favoriteFilterMode, setFavoriteFilterMode] =
+    useState<PlayToolbarFilterMode>('all');
+  const [selectedPlayGenres, setSelectedPlayGenres] = useState<
+    SupportedGenre[]
+  >([]);
+  const [selectedFavoriteGenres, setSelectedFavoriteGenres] = useState<
+    SupportedGenre[]
+  >([]);
+  const [showPlayFilterPanel, setShowPlayFilterPanel] = useState(false);
+  const [showFavoriteFilterPanel, setShowFavoriteFilterPanel] = useState(false);
+  const [loadingPlayGenreFilters, setLoadingPlayGenreFilters] = useState(false);
+  const [loadingFavoriteGenreFilters, setLoadingFavoriteGenreFilters] =
+    useState(false);
+  const [playRecordGenres, setPlayRecordGenres] = useState<
+    Record<string, SupportedGenre[]>
+  >({});
+  const [favoriteItemGenres, setFavoriteItemGenres] = useState<
+    Record<string, SupportedGenre[]>
+  >({});
   const [analysisView, setAnalysisView] = useState<AnalysisView>('week');
   const [genreScope, setGenreScope] = useState<GenreScope>('all');
   const [watchFormatHoverKey, setWatchFormatHoverKey] = useState<
@@ -653,6 +754,8 @@ function MyPageClient() {
   const longPressTimerRef = useRef<number | null>(null);
   const suppressPlayCardClickRef = useRef(false);
   const suppressFavoriteCardClickRef = useRef(false);
+  const playToolbarRef = useRef<HTMLDivElement | null>(null);
+  const favoriteToolbarRef = useRef<HTMLDivElement | null>(null);
 
   const updatePlayRecords = useCallback(
     (records: Record<string, PlayRecord>) => {
@@ -760,6 +863,19 @@ function MyPageClient() {
     setSelectedFavoriteKeys(new Set());
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'play') {
+      setShowFavoriteFilterPanel(false);
+      return;
+    }
+    if (activeTab === 'favorite') {
+      setShowPlayFilterPanel(false);
+      return;
+    }
+    setShowPlayFilterPanel(false);
+    setShowFavoriteFilterPanel(false);
+  }, [activeTab]);
+
   const clearLongPressTimer = useCallback(() => {
     if (!longPressTimerRef.current) return;
     window.clearTimeout(longPressTimerRef.current);
@@ -772,29 +888,404 @@ function MyPageClient() {
     };
   }, [clearLongPressTimer]);
 
-  const normalizedPlaySearchKeyword = playSearchKeyword.trim().toLowerCase();
-  const filteredPlayRecords = playRecords.filter((record) => {
-    if (!normalizedPlaySearchKeyword) return true;
-    return [
-      record.title,
-      record.source_name,
-      record.year,
-      record.search_title,
-    ].some((value) =>
-      (value || '').toLowerCase().includes(normalizedPlaySearchKeyword)
-    );
-  });
+  const fetchGenresForRecord = useCallback(
+    async (record: PlayRecordItem): Promise<string[]> => {
+      const cached = genreCacheRef.current.get(record.key);
+      if (cached) return cached;
 
-  const normalizedFavoriteSearchKeyword = favoriteSearchKeyword
-    .trim()
-    .toLowerCase();
-  const filteredFavoriteItems = favoriteItems.filter((item) => {
-    if (!normalizedFavoriteSearchKeyword) return true;
-    return [item.title, item.sourceName, item.year, item.searchTitle].some(
-      (value) =>
-        (value || '').toLowerCase().includes(normalizedFavoriteSearchKeyword)
+      const { source, id } = parseStorageKey(record.key);
+      const baseParams = new URLSearchParams();
+      baseParams.set('mediaType', record.total_episodes > 1 ? 'tv' : 'movie');
+      if (record.year) baseParams.set('year', record.year);
+      if (record.cover) baseParams.set('poster', record.cover);
+
+      const fetchGenresWithParams = async (
+        params: URLSearchParams
+      ): Promise<string[] | null> => {
+        try {
+          const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+          if (!response.ok) {
+            return null;
+          }
+          const payload = (await response.json()) as { genres?: unknown };
+          const genres = Array.isArray(payload.genres)
+            ? payload.genres
+                .map((item) => (typeof item === 'string' ? item.trim() : ''))
+                .filter(Boolean)
+            : [];
+          return genres;
+        } catch {
+          return null;
+        }
+      };
+
+      if (source === 'tmdb' && /^\d+$/.test(id)) {
+        const params = new URLSearchParams(baseParams);
+        params.set('id', id);
+        const genres = (await fetchGenresWithParams(params)) || [];
+        genreCacheRef.current.set(record.key, genres);
+        return genres;
+      }
+
+      const titleCandidates = buildTmdbTitleCandidates(record);
+      if (titleCandidates.length === 0) {
+        genreCacheRef.current.set(record.key, []);
+        return [];
+      }
+
+      for (const titleCandidate of titleCandidates) {
+        const params = new URLSearchParams(baseParams);
+        params.set('title', titleCandidate);
+        const genres = await fetchGenresWithParams(params);
+        if (genres && genres.length > 0) {
+          genreCacheRef.current.set(record.key, genres);
+          return genres;
+        }
+      }
+
+      genreCacheRef.current.set(record.key, []);
+      return [];
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!showPlayFilterPanel) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!playToolbarRef.current) return;
+      if (playToolbarRef.current.contains(event.target as Node)) return;
+      setShowPlayFilterPanel(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowPlayFilterPanel(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showPlayFilterPanel]);
+
+  useEffect(() => {
+    if (!showFavoriteFilterPanel) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!favoriteToolbarRef.current) return;
+      if (favoriteToolbarRef.current.contains(event.target as Node)) return;
+      setShowFavoriteFilterPanel(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowFavoriteFilterPanel(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showFavoriteFilterPanel]);
+
+  useEffect(() => {
+    const validKeys = new Set(playRecords.map((record) => record.key));
+    setPlayRecordGenres((prev) => {
+      const next: Record<string, SupportedGenre[]> = {};
+      Object.entries(prev).forEach(([key, genres]) => {
+        if (!validKeys.has(key)) return;
+        next[key] = genres;
+      });
+      return next;
+    });
+  }, [playRecords]);
+
+  useEffect(() => {
+    const validKeys = new Set(favoriteItems.map((item) => item.key));
+    setFavoriteItemGenres((prev) => {
+      const next: Record<string, SupportedGenre[]> = {};
+      Object.entries(prev).forEach(([key, genres]) => {
+        if (!validKeys.has(key)) return;
+        next[key] = genres;
+      });
+      return next;
+    });
+  }, [favoriteItems]);
+
+  useEffect(() => {
+    if (activeTab !== 'play') return;
+    if (!showPlayFilterPanel && selectedPlayGenres.length === 0) return;
+    if (playRecords.length === 0) return;
+
+    const missingTargets = playRecords.filter(
+      (record) => !playRecordGenres[record.key]
     );
-  });
+    if (missingTargets.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setLoadingPlayGenreFilters(true);
+      try {
+        const settled = await Promise.allSettled(
+          missingTargets.map((record) => fetchGenresForRecord(record))
+        );
+        if (cancelled) return;
+        setPlayRecordGenres((prev) => {
+          const next = { ...prev };
+          settled.forEach((result, index) => {
+            const record = missingTargets[index];
+            if (result.status !== 'fulfilled') {
+              next[record.key] = [];
+              return;
+            }
+            const normalizedGenres = Array.from(
+              new Set(
+                result.value
+                  .map((rawGenre) => normalizeGenreName(rawGenre))
+                  .filter(Boolean)
+              )
+            ) as SupportedGenre[];
+            next[record.key] = normalizedGenres;
+          });
+          return next;
+        });
+      } finally {
+        if (!cancelled) {
+          setLoadingPlayGenreFilters(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    fetchGenresForRecord,
+    playRecordGenres,
+    playRecords,
+    selectedPlayGenres.length,
+    showPlayFilterPanel,
+  ]);
+
+  const playGenreOptions = useMemo(() => {
+    return SUPPORTED_GENRES.filter((genre) =>
+      playRecords.some((record) =>
+        (playRecordGenres[record.key] || []).includes(genre)
+      )
+    );
+  }, [playRecordGenres, playRecords]);
+
+  const fetchGenresForFavorite = useCallback(
+    async (item: FavoriteItem): Promise<string[]> => {
+      const cacheKey = `favorite:${item.key}`;
+      const cached = genreCacheRef.current.get(cacheKey);
+      if (cached) return cached;
+
+      const baseParams = new URLSearchParams();
+      baseParams.set('mediaType', (item.episodes || 0) > 1 ? 'tv' : 'movie');
+      if (item.year) baseParams.set('year', item.year);
+      if (item.poster) baseParams.set('poster', item.poster);
+
+      const fetchGenresWithParams = async (
+        params: URLSearchParams
+      ): Promise<string[] | null> => {
+        try {
+          const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+          if (!response.ok) {
+            return null;
+          }
+          const payload = (await response.json()) as { genres?: unknown };
+          const genres = Array.isArray(payload.genres)
+            ? payload.genres
+                .map((value) => (typeof value === 'string' ? value.trim() : ''))
+                .filter(Boolean)
+            : [];
+          return genres;
+        } catch {
+          return null;
+        }
+      };
+
+      if (item.source === 'tmdb' && /^\d+$/.test(item.id)) {
+        const params = new URLSearchParams(baseParams);
+        params.set('id', item.id);
+        const genres = (await fetchGenresWithParams(params)) || [];
+        genreCacheRef.current.set(cacheKey, genres);
+        return genres;
+      }
+
+      const titleCandidates = buildTmdbTitleCandidates({
+        title: item.title,
+        search_title: item.searchTitle,
+      });
+      if (titleCandidates.length === 0) {
+        genreCacheRef.current.set(cacheKey, []);
+        return [];
+      }
+
+      for (const titleCandidate of titleCandidates) {
+        const params = new URLSearchParams(baseParams);
+        params.set('title', titleCandidate);
+        const genres = await fetchGenresWithParams(params);
+        if (genres && genres.length > 0) {
+          genreCacheRef.current.set(cacheKey, genres);
+          return genres;
+        }
+      }
+
+      genreCacheRef.current.set(cacheKey, []);
+      return [];
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (activeTab !== 'favorite') return;
+    if (!showFavoriteFilterPanel && selectedFavoriteGenres.length === 0) return;
+    if (favoriteItems.length === 0) return;
+
+    const missingTargets = favoriteItems.filter(
+      (item) => !favoriteItemGenres[item.key]
+    );
+    if (missingTargets.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setLoadingFavoriteGenreFilters(true);
+      try {
+        const settled = await Promise.allSettled(
+          missingTargets.map((item) => fetchGenresForFavorite(item))
+        );
+        if (cancelled) return;
+        setFavoriteItemGenres((prev) => {
+          const next = { ...prev };
+          settled.forEach((result, index) => {
+            const item = missingTargets[index];
+            if (result.status !== 'fulfilled') {
+              next[item.key] = [];
+              return;
+            }
+            const normalizedGenres = Array.from(
+              new Set(
+                result.value
+                  .map((rawGenre) => normalizeGenreName(rawGenre))
+                  .filter(Boolean)
+              )
+            ) as SupportedGenre[];
+            next[item.key] = normalizedGenres;
+          });
+          return next;
+        });
+      } finally {
+        if (!cancelled) {
+          setLoadingFavoriteGenreFilters(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    favoriteItemGenres,
+    favoriteItems,
+    fetchGenresForFavorite,
+    selectedFavoriteGenres.length,
+    showFavoriteFilterPanel,
+  ]);
+
+  const favoriteGenreOptions = useMemo(() => {
+    return SUPPORTED_GENRES.filter((genre) =>
+      favoriteItems.some((item) =>
+        (favoriteItemGenres[item.key] || []).includes(genre)
+      )
+    );
+  }, [favoriteItemGenres, favoriteItems]);
+
+  const normalizedPlaySearchKeyword = playSearchKeyword.trim().toLowerCase();
+  const filteredPlayRecords = useMemo(() => {
+    const searched = playRecords.filter((record) => {
+      if (!normalizedPlaySearchKeyword) return true;
+      return [
+        record.title,
+        record.source_name,
+        record.year,
+        record.search_title,
+      ].some((value) =>
+        (value || '').toLowerCase().includes(normalizedPlaySearchKeyword)
+      );
+    });
+
+    const mediaFiltered = searched.filter((record) => {
+      if (playFilterMode === 'all') return true;
+      return getWatchFormat(record) === playFilterMode;
+    });
+
+    const genreFiltered = mediaFiltered.filter((record) => {
+      if (selectedPlayGenres.length === 0) return true;
+      const genres = playRecordGenres[record.key] || [];
+      return selectedPlayGenres.every((genre) => genres.includes(genre));
+    });
+
+    if (playSortMode === 'latest') {
+      return genreFiltered;
+    }
+
+    const sorted = [...genreFiltered].sort((a, b) => {
+      const aTitle = (a.search_title || a.title || '').trim();
+      const bTitle = (b.search_title || b.title || '').trim();
+      const result = aTitle.localeCompare(bTitle, 'zh-Hans-CN', {
+        sensitivity: 'base',
+        numeric: true,
+      });
+      return playSortMode === 'titleAsc' ? result : -result;
+    });
+
+    return sorted;
+  }, [
+    normalizedPlaySearchKeyword,
+    playFilterMode,
+    playRecordGenres,
+    playRecords,
+    playSortMode,
+    selectedPlayGenres,
+  ]);
+
+  const filteredFavoriteItems = useMemo(() => {
+    const mediaFiltered = favoriteItems.filter((item) => {
+      if (favoriteFilterMode === 'all') return true;
+      return (item.episodes || 0) > 1
+        ? favoriteFilterMode === 'tv'
+        : favoriteFilterMode === 'movie';
+    });
+
+    const genreFiltered = mediaFiltered.filter((item) => {
+      if (selectedFavoriteGenres.length === 0) return true;
+      const genres = favoriteItemGenres[item.key] || [];
+      return selectedFavoriteGenres.every((genre) => genres.includes(genre));
+    });
+
+    if (favoriteSortMode === 'latest') {
+      return genreFiltered;
+    }
+
+    return [...genreFiltered].sort((a, b) => {
+      const aTitle = (a.searchTitle || a.title || '').trim();
+      const bTitle = (b.searchTitle || b.title || '').trim();
+      const result = aTitle.localeCompare(bTitle, 'zh-Hans-CN', {
+        sensitivity: 'base',
+        numeric: true,
+      });
+      return favoriteSortMode === 'titleAsc' ? result : -result;
+    });
+  }, [
+    favoriteFilterMode,
+    favoriteItemGenres,
+    favoriteItems,
+    favoriteSortMode,
+    selectedFavoriteGenres,
+  ]);
 
   const analysisChartData = useMemo<AnalysisDataPoint[]>(() => {
     const config = ANALYSIS_VIEW_CONFIG[analysisView];
@@ -994,67 +1485,6 @@ function MyPageClient() {
       completionStats.nearlyCompleted,
       completionStats.started,
     ]
-  );
-
-  const fetchGenresForRecord = useCallback(
-    async (record: PlayRecordItem): Promise<string[]> => {
-      const cached = genreCacheRef.current.get(record.key);
-      if (cached) return cached;
-
-      const { source, id } = parseStorageKey(record.key);
-      const baseParams = new URLSearchParams();
-      baseParams.set('mediaType', record.total_episodes > 1 ? 'tv' : 'movie');
-      if (record.year) baseParams.set('year', record.year);
-      if (record.cover) baseParams.set('poster', record.cover);
-
-      const fetchGenresWithParams = async (
-        params: URLSearchParams
-      ): Promise<string[] | null> => {
-        try {
-          const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-          if (!response.ok) {
-            return null;
-          }
-          const payload = (await response.json()) as { genres?: unknown };
-          const genres = Array.isArray(payload.genres)
-            ? payload.genres
-                .map((item) => (typeof item === 'string' ? item.trim() : ''))
-                .filter(Boolean)
-            : [];
-          return genres;
-        } catch {
-          return null;
-        }
-      };
-
-      if (source === 'tmdb' && /^\d+$/.test(id)) {
-        const params = new URLSearchParams(baseParams);
-        params.set('id', id);
-        const genres = (await fetchGenresWithParams(params)) || [];
-        genreCacheRef.current.set(record.key, genres);
-        return genres;
-      }
-
-      const titleCandidates = buildTmdbTitleCandidates(record);
-      if (titleCandidates.length === 0) {
-        genreCacheRef.current.set(record.key, []);
-        return [];
-      }
-
-      for (const titleCandidate of titleCandidates) {
-        const params = new URLSearchParams(baseParams);
-        params.set('title', titleCandidate);
-        const genres = await fetchGenresWithParams(params);
-        if (genres && genres.length > 0) {
-          genreCacheRef.current.set(record.key, genres);
-          return genres;
-        }
-      }
-
-      genreCacheRef.current.set(record.key, []);
-      return [];
-    },
-    []
   );
 
   useEffect(() => {
@@ -1315,10 +1745,84 @@ function MyPageClient() {
     }
   };
 
+  const handlePlayFirstRecord = useCallback(() => {
+    if (filteredPlayRecords.length === 0) return;
+    router.push(buildPlayUrl(filteredPlayRecords[0]));
+  }, [filteredPlayRecords, router]);
+
+  const handlePlayRandomRecord = useCallback(() => {
+    if (filteredPlayRecords.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * filteredPlayRecords.length);
+    router.push(buildPlayUrl(filteredPlayRecords[randomIndex]));
+  }, [filteredPlayRecords, router]);
+
+  const handleToggleTitleSort = useCallback(() => {
+    setPlaySortMode((prev) => {
+      if (prev === 'titleAsc') return 'titleDesc';
+      return 'titleAsc';
+    });
+  }, []);
+
+  const handleFavoriteFirstRecord = useCallback(() => {
+    if (filteredFavoriteItems.length === 0) return;
+    router.push(buildFavoritePlayUrl(filteredFavoriteItems[0]));
+  }, [filteredFavoriteItems, router]);
+
+  const handleFavoriteRandomRecord = useCallback(() => {
+    if (filteredFavoriteItems.length === 0) return;
+    const randomIndex = Math.floor(
+      Math.random() * filteredFavoriteItems.length
+    );
+    router.push(buildFavoritePlayUrl(filteredFavoriteItems[randomIndex]));
+  }, [filteredFavoriteItems, router]);
+
+  const handleToggleFavoriteTitleSort = useCallback(() => {
+    setFavoriteSortMode((prev) => {
+      if (prev === 'titleAsc') return 'titleDesc';
+      return 'titleAsc';
+    });
+  }, []);
+
+  const togglePlayGenreFilter = useCallback((genre: SupportedGenre) => {
+    setSelectedPlayGenres((prev) => {
+      if (prev.includes(genre)) {
+        return prev.filter((item) => item !== genre);
+      }
+      return [...prev, genre];
+    });
+  }, []);
+
+  const resetPlayToolbar = useCallback(() => {
+    setPlaySortMode('latest');
+    setPlayFilterMode('all');
+    setSelectedPlayGenres([]);
+    setPlaySearchKeyword('');
+  }, []);
+
+  const toggleFavoriteGenreFilter = useCallback((genre: SupportedGenre) => {
+    setSelectedFavoriteGenres((prev) => {
+      if (prev.includes(genre)) {
+        return prev.filter((item) => item !== genre);
+      }
+      return [...prev, genre];
+    });
+  }, []);
+
+  const resetFavoriteToolbar = useCallback(() => {
+    setFavoriteSortMode('latest');
+    setFavoriteFilterMode('all');
+    setSelectedFavoriteGenres([]);
+  }, []);
+
+  const hasActivePlayFilters =
+    playFilterMode !== 'all' || selectedPlayGenres.length > 0;
+  const hasActiveFavoriteFilters =
+    favoriteFilterMode !== 'all' || selectedFavoriteGenres.length > 0;
+
   return (
     <PageLayout activePath='/my'>
       <div className='overflow-visible px-0 pb-4 sm:px-10 sm:pb-8'>
-        <div className='space-y-8 px-4 pt-6 sm:px-0 sm:pt-8 md:pt-8'>
+        <div className='space-y-3 px-4 pt-6 sm:space-y-3 sm:px-0 sm:pt-8 md:pt-8'>
           <div className='flex justify-center'>
             <CapsuleSwitch
               options={[
@@ -1332,71 +1836,146 @@ function MyPageClient() {
           </div>
 
           {activeTab === 'play' ? (
-            <section className='space-y-4'>
-              <div className='px-0'>
-                <div className='relative'>
-                  <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
-                  <input
-                    type='text'
-                    value={playSearchKeyword}
-                    onChange={(event) =>
-                      setPlaySearchKeyword(event.target.value)
-                    }
-                    placeholder='搜索历史记录'
-                    className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
-                  />
-                  {playSearchKeyword ? (
-                    <button
-                      type='button'
-                      aria-label='clear-play-search'
-                      onClick={() => setPlaySearchKeyword('')}
-                      className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                    >
-                      <X className='h-4 w-4' />
-                    </button>
-                  ) : null}
+            <section className='space-y-3'>
+              <div ref={playToolbarRef} className='space-y-3'>
+                <div className='mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 py-1'>
+                  <span className='shrink-0 text-xs font-semibold tracking-wide text-zinc-400'>
+                    共 {filteredPlayRecords.length} 项
+                  </span>
+                  <button
+                    type='button'
+                    disabled={filteredPlayRecords.length === 0}
+                    onClick={handlePlayFirstRecord}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42] disabled:cursor-not-allowed disabled:opacity-45'
+                  >
+                    <Play className='h-4 w-4 fill-current text-zinc-300' />
+                    播放
+                  </button>
+                  <button
+                    type='button'
+                    disabled={filteredPlayRecords.length === 0}
+                    onClick={handlePlayRandomRecord}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42] disabled:cursor-not-allowed disabled:opacity-45'
+                  >
+                    <Shuffle className='h-4 w-4 text-zinc-300' />
+                    随机播放
+                  </button>
+                  <button
+                    type='button'
+                    onClick={handleToggleTitleSort}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42]'
+                  >
+                    标题
+                    {playSortMode === 'titleDesc' ? (
+                      <ArrowDown className='h-4 w-4 text-zinc-300' />
+                    ) : (
+                      <ArrowUp className='h-4 w-4 text-zinc-300' />
+                    )}
+                  </button>
+                  <button
+                    type='button'
+                    aria-label='open-play-filter-panel'
+                    onClick={() => {
+                      setShowPlayFilterPanel((prev) => !prev);
+                    }}
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/5 text-zinc-200 transition-colors ${
+                      showPlayFilterPanel || hasActivePlayFilters
+                        ? 'bg-[#3a3f46]'
+                        : 'bg-[#2d3035] hover:bg-[#383c42]'
+                    }`}
+                  >
+                    <ListFilter className='h-4 w-4' />
+                  </button>
                 </div>
-              </div>
-              <div className='flex items-center justify-between'>
-                <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
-                  <History className='h-5 w-5' />
-                  {'\u6211\u7684\u5386\u53f2\u8bb0\u5f55'}
-                </h2>
-                {!loadingPlayRecords && playRecords.length > 0 ? (
-                  isPlayBatchMode ? (
-                    <div className='flex items-center gap-3'>
+
+                {showPlayFilterPanel ? (
+                  <div className='rounded-2xl border border-gray-200/60 bg-white/75 p-4 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/50 sm:p-6'>
+                    <div className='mb-4 flex items-center justify-between'>
+                      <div className='inline-flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200'>
+                        <ListFilter className='h-5 w-5' />
+                        筛选
+                      </div>
                       <button
                         type='button'
-                        className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
-                        disabled={selectedPlayKeys.size === 0}
-                        onClick={() => setDeleteTarget('play')}
+                        onClick={resetPlayToolbar}
+                        className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
                       >
-                        {`\u5220\u9664 (${selectedPlayKeys.size})`}
-                      </button>
-                      <button
-                        type='button'
-                        className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                        onClick={() => {
-                          setIsPlayBatchMode(false);
-                          setSelectedPlayKeys(new Set());
-                        }}
-                      >
-                        {'\u53d6\u6d88'}
+                        重置筛选
                       </button>
                     </div>
-                  ) : (
-                    <button
-                      type='button'
-                      className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                      onClick={() => {
-                        setIsPlayBatchMode(true);
-                        setIsFavoriteBatchMode(false);
-                        setSelectedFavoriteKeys(new Set());
-                      }}
-                    >
-                      {'\u6279\u91cf\u5904\u7406'}
-                    </button>
-                  )
+                    <div className='space-y-4'>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2'>
+                        <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-24 sm:flex-shrink-0 sm:pt-1'>
+                          <Clapperboard className='h-4 w-4' />
+                          形态
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          {[
+                            { value: 'all', label: '全部' },
+                            { value: 'movie', label: '电影' },
+                            { value: 'tv', label: '剧集' },
+                          ].map((option) => {
+                            const active = playFilterMode === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type='button'
+                                aria-pressed={active}
+                                onClick={() =>
+                                  setPlayFilterMode(
+                                    option.value as PlayToolbarFilterMode
+                                  )
+                                }
+                                className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                  active
+                                    ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2'>
+                        <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-24 sm:flex-shrink-0 sm:pt-1'>
+                          <Tags className='h-4 w-4' />
+                          题材
+                        </div>
+                        {loadingPlayGenreFilters ? (
+                          <span className='text-sm text-gray-500 dark:text-gray-400'>
+                            正在同步影片类型...
+                          </span>
+                        ) : playGenreOptions.length > 0 ? (
+                          <div className='flex flex-wrap gap-2'>
+                            {playGenreOptions.map((genre) => {
+                              const active = selectedPlayGenres.includes(genre);
+                              return (
+                                <button
+                                  key={genre}
+                                  type='button'
+                                  aria-pressed={active}
+                                  onClick={() => togglePlayGenreFilter(genre)}
+                                  className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                    active
+                                      ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                  }`}
+                                >
+                                  {genre}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className='text-sm text-gray-500 dark:text-gray-400'>
+                            暂无可用类型（可先等待同步）
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : null}
               </div>
 
@@ -1483,71 +2062,149 @@ function MyPageClient() {
               )}
             </section>
           ) : activeTab === 'favorite' ? (
-            <section className='space-y-4'>
-              <div className='px-0'>
-                <div className='relative'>
-                  <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
-                  <input
-                    type='text'
-                    value={favoriteSearchKeyword}
-                    onChange={(event) =>
-                      setFavoriteSearchKeyword(event.target.value)
-                    }
-                    placeholder='搜索收藏夹'
-                    className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
-                  />
-                  {favoriteSearchKeyword ? (
-                    <button
-                      type='button'
-                      aria-label='clear-favorite-search'
-                      onClick={() => setFavoriteSearchKeyword('')}
-                      className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                    >
-                      <X className='h-4 w-4' />
-                    </button>
-                  ) : null}
+            <section className='space-y-3'>
+              <div ref={favoriteToolbarRef} className='space-y-3'>
+                <div className='mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 py-1'>
+                  <span className='shrink-0 text-xs font-semibold tracking-wide text-zinc-400'>
+                    共 {filteredFavoriteItems.length} 项
+                  </span>
+                  <button
+                    type='button'
+                    disabled={filteredFavoriteItems.length === 0}
+                    onClick={handleFavoriteFirstRecord}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42] disabled:cursor-not-allowed disabled:opacity-45'
+                  >
+                    <Play className='h-4 w-4 fill-current text-zinc-300' />
+                    播放
+                  </button>
+                  <button
+                    type='button'
+                    disabled={filteredFavoriteItems.length === 0}
+                    onClick={handleFavoriteRandomRecord}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42] disabled:cursor-not-allowed disabled:opacity-45'
+                  >
+                    <Shuffle className='h-4 w-4 text-zinc-300' />
+                    随机播放
+                  </button>
+                  <button
+                    type='button'
+                    onClick={handleToggleFavoriteTitleSort}
+                    className='inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/5 bg-[#2d3035] px-4 text-sm font-semibold text-zinc-100 transition-colors hover:bg-[#383c42]'
+                  >
+                    标题
+                    {favoriteSortMode === 'titleDesc' ? (
+                      <ArrowDown className='h-4 w-4 text-zinc-300' />
+                    ) : (
+                      <ArrowUp className='h-4 w-4 text-zinc-300' />
+                    )}
+                  </button>
+                  <button
+                    type='button'
+                    aria-label='open-favorite-filter-panel'
+                    onClick={() => {
+                      setShowFavoriteFilterPanel((prev) => !prev);
+                    }}
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/5 text-zinc-200 transition-colors ${
+                      showFavoriteFilterPanel || hasActiveFavoriteFilters
+                        ? 'bg-[#3a3f46]'
+                        : 'bg-[#2d3035] hover:bg-[#383c42]'
+                    }`}
+                  >
+                    <ListFilter className='h-4 w-4' />
+                  </button>
                 </div>
-              </div>
-              <div className='flex items-center justify-between'>
-                <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
-                  <Heart className='h-5 w-5' />
-                  {'\u6211\u7684\u6536\u85cf\u5939'}
-                </h2>
-                {!loadingFavorites && favoriteItems.length > 0 ? (
-                  isFavoriteBatchMode ? (
-                    <div className='flex items-center gap-3'>
+
+                {showFavoriteFilterPanel ? (
+                  <div className='rounded-2xl border border-gray-200/60 bg-white/75 p-4 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/50 sm:p-6'>
+                    <div className='mb-4 flex items-center justify-between'>
+                      <div className='inline-flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200'>
+                        <ListFilter className='h-5 w-5' />
+                        筛选
+                      </div>
                       <button
                         type='button'
-                        className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
-                        disabled={selectedFavoriteKeys.size === 0}
-                        onClick={() => setDeleteTarget('favorite')}
+                        onClick={resetFavoriteToolbar}
+                        className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
                       >
-                        {`\u5220\u9664 (${selectedFavoriteKeys.size})`}
-                      </button>
-                      <button
-                        type='button'
-                        className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                        onClick={() => {
-                          setIsFavoriteBatchMode(false);
-                          setSelectedFavoriteKeys(new Set());
-                        }}
-                      >
-                        {'\u53d6\u6d88'}
+                        重置筛选
                       </button>
                     </div>
-                  ) : (
-                    <button
-                      type='button'
-                      className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                      onClick={() => {
-                        setIsFavoriteBatchMode(true);
-                        setIsPlayBatchMode(false);
-                        setSelectedPlayKeys(new Set());
-                      }}
-                    >
-                      {'\u6279\u91cf\u5904\u7406'}
-                    </button>
-                  )
+                    <div className='space-y-4'>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2'>
+                        <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-24 sm:flex-shrink-0 sm:pt-1'>
+                          <Clapperboard className='h-4 w-4' />
+                          形态
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          {[
+                            { value: 'all', label: '全部' },
+                            { value: 'movie', label: '电影' },
+                            { value: 'tv', label: '剧集' },
+                          ].map((option) => {
+                            const active = favoriteFilterMode === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type='button'
+                                aria-pressed={active}
+                                onClick={() =>
+                                  setFavoriteFilterMode(
+                                    option.value as PlayToolbarFilterMode
+                                  )
+                                }
+                                className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                  active
+                                    ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2'>
+                        <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-24 sm:flex-shrink-0 sm:pt-1'>
+                          <Tags className='h-4 w-4' />
+                          题材
+                        </div>
+                        {loadingFavoriteGenreFilters ? (
+                          <span className='text-sm text-gray-500 dark:text-gray-400'>
+                            正在同步影片类型...
+                          </span>
+                        ) : favoriteGenreOptions.length > 0 ? (
+                          <div className='flex flex-wrap gap-2'>
+                            {favoriteGenreOptions.map((genre) => {
+                              const active =
+                                selectedFavoriteGenres.includes(genre);
+                              return (
+                                <button
+                                  key={genre}
+                                  type='button'
+                                  aria-pressed={active}
+                                  onClick={() =>
+                                    toggleFavoriteGenreFilter(genre)
+                                  }
+                                  className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                    active
+                                      ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                  }`}
+                                >
+                                  {genre}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className='text-sm text-gray-500 dark:text-gray-400'>
+                            暂无可用类型（可先等待同步）
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : null}
               </div>
 
@@ -1925,9 +2582,7 @@ function MyPageClient() {
                   </div>
                 </div>
 
-                <CompletionPieLegend
-                  chartData={completionChartData}
-                />
+                <CompletionPieLegend chartData={completionChartData} />
               </div>
 
               <div className='grid min-w-0 gap-4 lg:grid-cols-[0.8fr_1.2fr]'>
@@ -1956,7 +2611,10 @@ function MyPageClient() {
                             ))}
 
                             {watchTimeHeatmap.rows.map((row) => (
-                              <div key={`heatmap-row-${row.slotLabel}`} className='contents'>
+                              <div
+                                key={`heatmap-row-${row.slotLabel}`}
+                                className='contents'
+                              >
                                 <div className='flex h-full items-center text-[10px] text-gray-400 sm:text-[11px]'>
                                   {row.slotLabel}
                                 </div>
@@ -1999,22 +2657,22 @@ function MyPageClient() {
                       </p>
                     </div>
                     <div className='inline-flex w-full flex-wrap rounded-lg bg-gray-100 p-1 dark:bg-gray-800 sm:w-auto sm:flex-nowrap'>
-                      {(Object.keys(ANALYSIS_VIEW_CONFIG) as AnalysisView[]).map(
-                        (view) => (
-                          <button
-                            key={view}
-                            type='button'
-                            onClick={() => setAnalysisView(view)}
-                            className={`flex-1 rounded-md px-3 py-1 text-center text-xs font-medium transition-colors sm:flex-none ${
-                              analysisView === view
-                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                            }`}
-                          >
-                            {ANALYSIS_VIEW_CONFIG[view].buttonLabel}
-                          </button>
-                        )
-                      )}
+                      {(
+                        Object.keys(ANALYSIS_VIEW_CONFIG) as AnalysisView[]
+                      ).map((view) => (
+                        <button
+                          key={view}
+                          type='button'
+                          onClick={() => setAnalysisView(view)}
+                          className={`flex-1 rounded-md px-3 py-1 text-center text-xs font-medium transition-colors sm:flex-none ${
+                            analysisView === view
+                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {ANALYSIS_VIEW_CONFIG[view].buttonLabel}
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <div className='h-72 w-full sm:h-80'>
@@ -2084,14 +2742,18 @@ function MyPageClient() {
                                       return (
                                         <img
                                           key={`analysis-poster-${range}-${index}`}
-                                          src={processImageUrl(normalizedPoster)}
+                                          src={processImageUrl(
+                                            normalizedPoster
+                                          )}
                                           data-original-src={normalizedPoster}
                                           alt={`时间段海报 ${index + 1}`}
                                           className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
                                           referrerPolicy='no-referrer'
                                           loading='lazy'
                                           decoding='async'
-                                          onError={handleGenreTooltipPosterError}
+                                          onError={
+                                            handleGenreTooltipPosterError
+                                          }
                                         />
                                       );
                                     })}

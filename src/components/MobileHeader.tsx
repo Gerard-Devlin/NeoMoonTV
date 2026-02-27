@@ -104,8 +104,8 @@ const MobileHeader = ({
       <div
         className={`relative mx-auto w-[calc(100%-1.5rem)] max-w-[720px] rounded-3xl backdrop-blur-xl border transition-colors ${
           isHomePage
-            ? 'mt-2 bg-white/30 border-white/30 shadow-[0_8px_24px_rgba(0,0,0,0.18)] dark:bg-black/20 dark:border-white/20'
-            : 'mt-3 bg-white/70 border-gray-200/60 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/60'
+            ? 'mt-2 bg-white/30 border-white/30 shadow-[0_8px_24px_rgba(0,0,0,0.18)] dark:bg-black/35 dark:border-zinc-500/40'
+            : 'mt-3 bg-white/70 border-gray-200/60 shadow-sm dark:bg-black/80 dark:border-zinc-700/70'
         }`}
       >
         <div className='relative h-12 flex items-center justify-between px-4'>
