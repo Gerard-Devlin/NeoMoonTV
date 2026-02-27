@@ -37,6 +37,7 @@
 <img src="public/screenshot2.png" alt="项目截图" style="max-width:800px">
 <img src="public/screenshot3.png" alt="项目截图" style="max-width:800px">
 <img src="public/screenshot4.png" alt="项目截图" style="max-width:800px">
+<img src="public/screenshot5.png" alt="项目截图" style="max-width:800px">
 
 ## 🗺 目录
 
